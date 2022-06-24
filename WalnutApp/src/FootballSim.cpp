@@ -31,6 +31,7 @@
 #include <Windows.h>
 #include <windows.h>
 #include <chrono>
+#include <algorithm>
 
 #include "player.cpp"
 #include "playeringame.cpp"
@@ -286,6 +287,7 @@ public:
 	// Corner segment: Radius 1m
 
 	// Render the background pitch textures
+	// TODO: Store pitch lines somehwere for local size on pitch, so they can be used to detect when e.g. ball / player is in penalty area 
 	void RenderPitch(ImDrawList *draw) {
 		draw->AddRectFilled(TopLeft, BottomRight, grassCol); // Grass
 		draw->AddRect(TopLeft, BottomRight, lineCol); // Outline
@@ -298,6 +300,9 @@ public:
 
 		draw->AddRect(ImVec2(LeftEdge, Centre.y - (9.16 / 90) * PitchSize.y), ImVec2(LeftEdge + (5.5 / 120) * PitchSize.x, Centre.y + (9.16 / 90) * PitchSize.y), lineCol); // Left 6yd Area
 		draw->AddRect(ImVec2(RightEdge - 1, Centre.y - (9.16 / 90) * PitchSize.y), ImVec2(RightEdge - (5.5 / 120) * PitchSize.x, Centre.y + (9.16 / 90) * PitchSize.y), lineCol); // Right 6yd Area
+
+		draw->AddRectFilled(ImVec2(LeftEdge, Centre.y - (3.66 / 90) * PitchSize.y), ImVec2(LeftEdge - (0.5 / 120) * PitchSize.x, Centre.y + (3.66 / 90) * PitchSize.y), lineCol); // Left Goal
+		draw->AddRectFilled(ImVec2(RightEdge - 1, Centre.y - (3.66 / 90) * PitchSize.y), ImVec2(RightEdge + (0.5 / 120) * PitchSize.x, Centre.y + (3.66 / 90) * PitchSize.y), lineCol); // Right Goal
 
 		draw->AddCircleFilled(ImVec2(LeftEdge + (11.0 / 120) * PitchSize.x, Centre.y), 3, lineCol); // Left Penalty Spot
 		draw->AddCircleFilled(ImVec2(RightEdge - (11.0 / 120) * PitchSize.x, Centre.y), 3, lineCol); // Right Penalty Spot
@@ -327,56 +332,40 @@ public:
 		draw->PathStroke(lineCol);
 	}
 
+	void RenderPlayerMarker(SimplePlayer p, ImU32 colour, ImDrawList* draw) {
+		ImVec2 pos = p.position; // Get position part
+		if (drawOutline) draw->AddCircle(ImVec2(LeftEdge + (pos.x / Pitch.x) * PitchSize.x, TopEdge + (pos.y / Pitch.y) * PitchSize.y), MarkerSize + 1, IM_COL32(0, 0, 0, 255)); // Draw outline
+		draw->AddCircleFilled(ImVec2(LeftEdge + (pos.x / Pitch.x) * PitchSize.x, TopEdge + (pos.y / Pitch.y) * PitchSize.y), MarkerSize, colour); // Draw marker for player
+
+		// Draw player number on marker, centering on marker
+		float fontSize = 2 * MarkerSize;
+		auto TextSize = ImGui::CalcTextSize(std::to_string(p.number).c_str());
+		TextSize.x *= (fontSize / 20);
+		TextSize.y *= (fontSize / 20);
+		if (showNumbers) draw->AddText(ImGui::GetFont(), fontSize, ImVec2(LeftEdge + (pos.x / Pitch.x) * PitchSize.x - TextSize.x * 0.5f, TopEdge + (pos.y / Pitch.y) * PitchSize.y - TextSize.y * 0.5f), lineCol, std::to_string(p.number).c_str());
+	}
+
+	void RenderHoverText(SimplePlayer p, ImDrawList* draw) {
+		if (ImGui::IsMouseHoveringRect(ImVec2(LeftEdge + (p.position.x / Pitch.x) * PitchSize.x - MarkerSize, TopEdge + (p.position.y / Pitch.y) * PitchSize.y - MarkerSize),
+			ImVec2(LeftEdge + (p.position.x / Pitch.x) * PitchSize.x + MarkerSize, TopEdge + (p.position.y / Pitch.y) * PitchSize.y + MarkerSize))) { // Check if mouse is in bounding box around player marker
+			auto TextSize = ImGui::CalcTextSize(p.name);
+			draw->AddRectFilled(ImVec2(ImGui::GetMousePos().x, ImGui::GetMousePos().y - 20), ImVec2(ImGui::GetMousePos().x + TextSize.x, ImGui::GetMousePos().y - 20 + TextSize.y), IM_COL32(0, 0, 0, 100), 1.0f); // Draw transluscent background for text
+			draw->AddText(ImVec2(ImGui::GetMousePos().x, ImGui::GetMousePos().y - 20), lineCol, p.name); // Draw text above the cursor
+		}
+	}
+
 	// Render the game / players on top of the pitch
 	void RenderPlayers(std::vector<SimplePlayer> team1Players, std::vector<SimplePlayer> team2Players, ImDrawList* draw) {
 		ImFont* font = ImGui::GetFont(); // Get Font
 
-		// Iterate over players in Team 1
-		for (SimplePlayer& p : team1Players) {
-			ImVec2 pos = p.position; // Get position part
-			if (drawOutline) draw->AddCircle(ImVec2(LeftEdge + (pos.x / Pitch.x) * PitchSize.x, TopEdge + (pos.y / Pitch.y) * PitchSize.y), MarkerSize + 1, IM_COL32(0, 0, 0, 255)); // Draw outline
-			draw->AddCircleFilled(ImVec2(LeftEdge + (pos.x / Pitch.x) * PitchSize.x, TopEdge + (pos.y / Pitch.y) * PitchSize.y), MarkerSize, team1Col); // Draw marker for player
-
-			// Draw player number on marker, centering on marker
-			float fontSize = 2 * MarkerSize;
-			auto TextSize = ImGui::CalcTextSize(std::to_string(p.number).c_str());
-			TextSize.x *= (fontSize / 20);
-			TextSize.y *= (fontSize / 20);
-			if (showNumbers) draw->AddText(font, fontSize, ImVec2(LeftEdge + (pos.x / Pitch.x) * PitchSize.x - TextSize.x * 0.5f, TopEdge + (pos.y / Pitch.y) * PitchSize.y - TextSize.y * 0.5f), lineCol, std::to_string(p.number).c_str());
-		}
-
-		// Iterate over players in Team 2
-		for (SimplePlayer& p : team2Players) {
-			ImVec2 pos = p.position; // Get position part
-			if (drawOutline) draw->AddCircle(ImVec2(LeftEdge + (pos.x / Pitch.x) * PitchSize.x, TopEdge + (pos.y / Pitch.y) * PitchSize.y), MarkerSize + 1, IM_COL32(0, 0, 0, 255)); // Draw outline
-			draw->AddCircleFilled(ImVec2(LeftEdge + (pos.x / Pitch.x) * PitchSize.x, TopEdge + (pos.y / Pitch.y) * PitchSize.y), MarkerSize, team2Col); // Draw marker for player
-
-			// Draw player number on marker, centering on marker
-			float fontSize = 2 * MarkerSize;
-			auto TextSize = ImGui::CalcTextSize(std::to_string(p.number).c_str());
-			TextSize.x *= (fontSize / 20);
-			TextSize.y *= (fontSize / 20);
-			if (showNumbers) draw->AddText(font, 2 * MarkerSize, ImVec2(LeftEdge + (pos.x / Pitch.x) * PitchSize.x - TextSize.x * 0.5f, TopEdge + (pos.y / Pitch.y) * PitchSize.y - TextSize.y * 0.5f), lineCol, std::to_string(p.number).c_str());
-		}
+		// Iterate over players in teams
+		for (SimplePlayer& p : team1Players) RenderPlayerMarker(p, team1Col, draw);
+		for (SimplePlayer& p : team2Players) RenderPlayerMarker(p, team2Col, draw);
 
 		// Do name hover text at the very end so that markers are never rendered on top of the text
 		// If the user hovers over the player on the screen, display their name
-		for (SimplePlayer& p : team1Players) {
-			if (ImGui::IsMouseHoveringRect(ImVec2(LeftEdge + (p.position.x / Pitch.x) * PitchSize.x - MarkerSize, TopEdge + (p.position.y / Pitch.y) * PitchSize.y - MarkerSize),
-				ImVec2(LeftEdge + (p.position.x / Pitch.x) * PitchSize.x + MarkerSize, TopEdge + (p.position.y / Pitch.y) * PitchSize.y + MarkerSize))) { // Check if mouse is in bounding box around player marker
-				auto TextSize = ImGui::CalcTextSize(p.name);
-				draw->AddRectFilled(ImVec2(ImGui::GetMousePos().x, ImGui::GetMousePos().y - 20), ImVec2(ImGui::GetMousePos().x + TextSize.x, ImGui::GetMousePos().y - 20 + TextSize.y), IM_COL32(0, 0, 0, 100), 1.0f); // Draw transluscent background for text
-				draw->AddText(ImVec2(ImGui::GetMousePos().x, ImGui::GetMousePos().y - 20), lineCol, p.name); // Draw text above the cursor
-			}
-		}
-		for (SimplePlayer& p : team2Players) {
-			if (ImGui::IsMouseHoveringRect(ImVec2(LeftEdge + (p.position.x / Pitch.x) * PitchSize.x - MarkerSize, TopEdge + (p.position.y / Pitch.y) * PitchSize.y - MarkerSize),
-				ImVec2(LeftEdge + (p.position.x / Pitch.x) * PitchSize.x + MarkerSize, TopEdge + (p.position.y / Pitch.y) * PitchSize.y + MarkerSize))) { // Check if mouse is in bounding box around player marker
-				auto TextSize = ImGui::CalcTextSize(p.name);
-				draw->AddRectFilled(ImVec2(ImGui::GetMousePos().x, ImGui::GetMousePos().y - 20), ImVec2(ImGui::GetMousePos().x + TextSize.x, ImGui::GetMousePos().y - 20 + TextSize.y), IM_COL32(0, 0, 0, 100), 1.0f); // Draw transluscent background for text
-				draw->AddText(ImVec2(ImGui::GetMousePos().x, ImGui::GetMousePos().y - 20), lineCol, p.name); // Draw text above the cursor
-			}
-		}
+		for (SimplePlayer& p : team1Players) RenderHoverText(p, draw);
+		for (SimplePlayer& p : team2Players) RenderHoverText(p, draw);
 	}
 
 	// Master render function for the pitch view
@@ -475,6 +464,9 @@ public:
 			DMHeightOffset = -5;
 			WingerHeightOffset = -3;
 		}
+
+		ImGui::NewLine();
+		ImGui::Text("%.1f FPS", ImGui::GetIO().Framerate);
 	}
 
 	// TODO: Fix options so window can be resized
@@ -538,7 +530,7 @@ public:
 			ImGui::End();
 		}
 		else if (_windowState == WindowState::Debug1) {
-			ImGui::Begin("Simulate Single Game", _pOpen, _windowFlags);
+			ImGui::Begin("Pitch Render Test", _pOpen, _windowFlags);
 			ImGui::SetWindowSize(_windowSize);
 			ImVec2 ThisRegionSize = ImGui::GetContentRegionAvail();
 			ImVec2 textSize = ImGui::CalcTextSize(name);
@@ -567,7 +559,7 @@ public:
 			ImGui::SetCursorPos(initialPos);
 
 			ImGui::SetWindowFontScale(2.0f);
-			ImGui::Text("Simulate Single Game");
+			ImGui::Text("Pitch Render Test");
 			ImGui::SetWindowFontScale(1.0f);
 			ImGui::Text("Window size is %dx%d", (int)_windowSize.x, (int)_windowSize.y);
 			ImGui::Text("This content region size is %dx%d", (int)ThisRegionSize.x, (int)ThisRegionSize.y);
@@ -779,10 +771,10 @@ private:
 	float DMHeightOffset = -5;
 	float WingerHeightOffset = -3;
 
-	float MarkerSize = 10; // Size of the marker to represent players
+	float MarkerSize = 5; // Size of the marker to represent players
 
-	bool showNumbers = true; // To show shirt numbers or not
-	bool drawOutline = false; // To draw an outline around player markers or not
+	bool showNumbers = false; // To show shirt numbers or not
+	bool drawOutline = true; // To draw an outline around player markers or not
 
 	// Initialise colours
 	// TODO: Make these global with color picker for team colors
