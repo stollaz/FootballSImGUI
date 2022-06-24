@@ -32,122 +32,138 @@
 #include <windows.h>
 #include <chrono>
 
+#include "player.cpp"
+#include "playeringame.cpp"
+#include "team.cpp"
+#include "rotatableteam.cpp"
+#include "goal.cpp"
+#include "teamseasonstats.cpp"
+#include "teamgamestats.cpp"
+#include "logitem.cpp"
+#include "game.cpp"
+#include "gameweek.cpp"
+#include "playerseasonstats.cpp"
+#include "data.h"
+#include "simulate.h"
+
 using namespace Walnut;
 
-class TextItem {
-public:
-	std::string content;
-	ImVec4 colour;
-	bool newline;
+// Old event logging text stuff is here, use this once conflicts are solved
 
-	TextItem(std::string _content, ImVec4 _colour, bool _newline) : content(_content), colour(_colour), newline(_newline) {}
-	TextItem(std::string _content, bool _newline) : content(_content), colour(ImVec4(255,255,255,255)), newline(_newline) {}
-};
-
-class TextLine {
-public:
-	std::vector<TextItem> parts;
-
-	void AddItem(TextItem t) {
-		parts.push_back(t);
-	}
-
-	TextLine(){};
-};
-
-class TextTest : public Walnut::Layer {
-public:
-	void InitialiseBuffers() {
-		writeBuffer.clear();
-		screenBuffer.clear();
-
-		for (int i = 0; i < maxIndex; i++) {
-			writeBuffer.push_back(fmt::format("{}", i));
-		}
-
-		for (int i = 0; i < bufferSize; i++) {
-			screenBuffer.push_back(writeBuffer.at(i));
-		}
-
-		maxitemindex = bufferSize - 1;
-	}
-
-	void InitialiseEventBuffers() {
-		eventBuffer.clear();
-		eventScreenBuffer.clear();
-
-		TextLine t = TextLine();
-		t.AddItem(TextItem("RED CARD! ", GetColour(255, 0, 0), false));
-		t.AddItem(TextItem("Player has been sent off.", GetColour(255, 255, 255), true));
-		eventBuffer.push_back(t);
-
-		TextLine t1 = TextLine();
-		t1.AddItem(TextItem("YELLOW CARD! ", GetColour(255, 255, 0), false));
-		t1.AddItem(TextItem("Player has been booked.", GetColour(255, 255, 255), true));
-		eventBuffer.push_back(t1);
-
-		TextLine t2 = TextLine();
-		t2.AddItem(TextItem("GOAL! Player scored a goal.", GetColour(255, 255, 255), true));
-		eventBuffer.push_back(t2);
-
-		TextLine t3 = TextLine();
-		t3.AddItem(TextItem("RED! ", GetColour(255, 0, 0), false));
-		t3.AddItem(TextItem("GREEN! ", GetColour(0, 255, 0), false));
-		t3.AddItem(TextItem("BLUE! ", GetColour(0, 0, 255), false));
-		t3.AddItem(TextItem("DEFAULT. ", true));
-		eventBuffer.push_back(t3);
-
-		for (int i = 0; i < bufferSize; i++) {
-			eventScreenBuffer.push_back(eventBuffer.at(i));
-		}
-	}
-
-	virtual void OnAttach() override {
-		InitialiseEventBuffers();
-	}
-
-	ImVec4 GetColour(int r, int g, int b) {
-		return ImVec4(std::clamp(r, 0, 255), std::clamp(g, 0, 255), std::clamp(b, 0, 255), 255);
-	}
-
-	void RenderText(TextItem t) {
-		ImGui::TextColored(t.colour, t.content.c_str());
-		if (!t.newline) ImGui::SameLine(0, 0);
-	}
-
-	virtual void OnUIRender() override
-	{
-		ImGui::Begin("Hello");
-		//if (maxitemindex != maxIndex-1) {
-		//	if (ImGui::Button("Next")) {
-		//		maxitemindex++;
-		//		screenBuffer.erase(screenBuffer.begin());
-		//		//screenBuffer.pop_back();
-		//		screenBuffer.push_back(writeBuffer.at(maxitemindex));
-		//	}
-		//}
-		//else if (ImGui::Button("Reset")) {
-		//	InitialiseEventBuffers();
-		//}
-
-		for (int i = 0; i < bufferSize; i++) {
-			//ImGui::Text(screenBuffer.at(i).c_str());
-			TextLine t = eventScreenBuffer.at(i);
-			for (TextItem ti : t.parts) RenderText(ti);
-		}
-
-		ImGui::End();
-	}
-private:
-	const int maxIndex = 4;
-	const int bufferSize = 4;
-	int maxitemindex = 0;
-	std::vector<std::string> writeBuffer;
-	std::vector<std::string> screenBuffer;
-
-	std::vector<TextLine> eventBuffer;
-	std::vector<TextLine> eventScreenBuffer;
-};
+//class TextItem {
+//public:
+//	std::string content;
+//	ImVec4 colour;
+//	bool newline;
+//
+//	TextItem(std::string _content, ImVec4 _colour, bool _newline) : content(_content), colour(_colour), newline(_newline) {}
+//	TextItem(std::string _content, bool _newline) : content(_content), colour(ImVec4(255,255,255,255)), newline(_newline) {}
+//};
+//
+//class TextLine {
+//public:
+//	std::vector<TextItem> parts;
+//
+//	void AddItem(TextItem t) {
+//		parts.push_back(t);
+//	}
+//
+//	TextLine(){};
+//};
+//
+//class TextTest : public Walnut::Layer {
+//public:
+//	void InitialiseBuffers() {
+//		writeBuffer.clear();
+//		screenBuffer.clear();
+//
+//		for (int i = 0; i < maxIndex; i++) {
+//			writeBuffer.push_back(fmt::format("{}", i));
+//		}
+//
+//		for (int i = 0; i < bufferSize; i++) {
+//			screenBuffer.push_back(writeBuffer.at(i));
+//		}
+//
+//		maxitemindex = bufferSize - 1;
+//	}
+//
+//	void InitialiseEventBuffers() {
+//		eventBuffer.clear();
+//		eventScreenBuffer.clear();
+//
+//		TextLine t = TextLine();
+//		t.AddItem(TextItem("RED CARD! ", GetColour(255, 0, 0), false));
+//		t.AddItem(TextItem("Player has been sent off.", GetColour(255, 255, 255), true));
+//		eventBuffer.push_back(t);
+//
+//		TextLine t1 = TextLine();
+//		t1.AddItem(TextItem("YELLOW CARD! ", GetColour(255, 255, 0), false));
+//		t1.AddItem(TextItem("Player has been booked.", GetColour(255, 255, 255), true));
+//		eventBuffer.push_back(t1);
+//
+//		TextLine t2 = TextLine();
+//		t2.AddItem(TextItem("GOAL! Player scored a goal.", GetColour(255, 255, 255), true));
+//		eventBuffer.push_back(t2);
+//
+//		TextLine t3 = TextLine();
+//		t3.AddItem(TextItem("RED! ", GetColour(255, 0, 0), false));
+//		t3.AddItem(TextItem("GREEN! ", GetColour(0, 255, 0), false));
+//		t3.AddItem(TextItem("BLUE! ", GetColour(0, 0, 255), false));
+//		t3.AddItem(TextItem("DEFAULT. ", true));
+//		eventBuffer.push_back(t3);
+//
+//		for (int i = 0; i < bufferSize; i++) {
+//			eventScreenBuffer.push_back(eventBuffer.at(i));
+//		}
+//	}
+//
+//	virtual void OnAttach() override {
+//		InitialiseEventBuffers();
+//	}
+//
+//	ImVec4 GetColour(int r, int g, int b) {
+//		return ImVec4(std::clamp(r, 0, 255), std::clamp(g, 0, 255), std::clamp(b, 0, 255), 255);
+//	}
+//
+//	void RenderText(TextItem t) {
+//		ImGui::TextColored(t.colour, t.content.c_str());
+//		if (!t.newline) ImGui::SameLine(0, 0);
+//	}
+//
+//	virtual void OnUIRender() override
+//	{
+//		ImGui::Begin("Hello");
+//		//if (maxitemindex != maxIndex-1) {
+//		//	if (ImGui::Button("Next")) {
+//		//		maxitemindex++;
+//		//		screenBuffer.erase(screenBuffer.begin());
+//		//		//screenBuffer.pop_back();
+//		//		screenBuffer.push_back(writeBuffer.at(maxitemindex));
+//		//	}
+//		//}
+//		//else if (ImGui::Button("Reset")) {
+//		//	InitialiseEventBuffers();
+//		//}
+//
+//		for (int i = 0; i < bufferSize; i++) {
+//			//ImGui::Text(screenBuffer.at(i).c_str());
+//			TextLine t = eventScreenBuffer.at(i);
+//			for (TextItem ti : t.parts) RenderText(ti);
+//		}
+//
+//		ImGui::End();
+//	}
+//private:
+//	const int maxIndex = 4;
+//	const int bufferSize = 4;
+//	int maxitemindex = 0;
+//	std::vector<std::string> writeBuffer;
+//	std::vector<std::string> screenBuffer;
+//
+//	std::vector<TextLine> eventBuffer;
+//	std::vector<TextLine> eventScreenBuffer;
+//};
 
 enum WindowState
 {
@@ -158,33 +174,18 @@ enum WindowState
 	Options
 };
 
-class Player {
+class SimplePlayer {
 public:
 	ImVec2 position;
 	int number;
 	char* name;
 
-	Player(ImVec2 _p, int _num, char* _name) : position(_p), number(_num), name(_name) {};
+	SimplePlayer(ImVec2 _p, int _num, char* _name) : position(_p), number(_num), name(_name) {};
 };
 
 class FootballUITest : public Walnut::Layer
 {
 public:
-	ImVec2 GetDesktopResolution()
-	{
-		RECT desktop;
-		// Get a handle to the desktop window
-		const HWND hDesktop = GetDesktopWindow();
-		// Get the size of screen to the variable desktop
-		GetWindowRect(0, 0);
-		// The top left corner will have coordinates (0,0)
-		// and the bottom right corner will have coordinates
-		// (horizontal, vertical)
-		int w = desktop.right;
-		int h = desktop.bottom;
-		return ImVec2((float)w, (float)h);
-	}
-
 	virtual void OnAttach() override {
 		// Demonstrate the various window flags. Typically you would just use the default!
 		/*static bool no_titlebar = true;
@@ -268,7 +269,7 @@ public:
 			ImGui::SliderFloat("Spacing 2", &spacing2, -10, 10);*/
 
 			ImGui::SetCursorPos(ImVec2(ThisRegionSize.x/4 -50,2.0f*ThisRegionSize.y/3));
-			if (ImGui::Button("Debug 1", ImVec2(100, 30))) {
+			if (ImGui::Button("Pitch Test", ImVec2(100, 30))) {
 				_windowState = WindowState::Debug1;
 			}
 			ImGui::SetCursorPos(ImVec2(2*ThisRegionSize.x / 4 -50, 2.0f * ThisRegionSize.y / 3));
@@ -316,6 +317,7 @@ public:
 			static float MarkerSize = 10;
 
 			static bool showNumbers = true;
+			static bool drawOutline = false;
 
 			ImGui::Begin("Settings");
 
@@ -339,6 +341,7 @@ public:
 			ImGui::SliderFloat("Marker Size", &MarkerSize, 5, 15);
 
 			ImGui::Checkbox("Show Numbers", &showNumbers);
+			ImGui::Checkbox("Draw Outline", &drawOutline);
 
 			if (ImGui::Button("Reset")) {
 				GKLineHeight = 7; // ?? to ??
@@ -457,37 +460,38 @@ public:
 
 			// Players
 
-			// TODO: LIsts of player locations
+			// TODO: Lists of player locations
 			// Have a player object, as well as a location (relative to the 120x90 pitch, which will be translated to screen space)
 			// Could also contain some information on momentum / inertia for movement
 			// For testing now though just use ImVec2 for pure positions and testing
 
 			// Add players to Team 1
 			// Players have a position, number and name
-			std::vector<Player> team1Players;
+			std::vector<SimplePlayer> team1Players;
 
-			team1Players.push_back(Player(ImVec2(GKLineHeight, Pitch.y/2), 1, "David De Gea")); // GK
+			team1Players.push_back(SimplePlayer(ImVec2(GKLineHeight, Pitch.y/2), 1, "David De Gea")); // GK
 
-			team1Players.push_back(Player(ImVec2(DefensiveLineHeight+FullBackHeightOffset, (Pitch.y / 2) - FBWidth), 23, "Luke Shaw")); // LB
-			team1Players.push_back(Player(ImVec2(DefensiveLineHeight, (Pitch.y / 2) - CBWidth), 5, "Harry Maguire")); // LCB
-			team1Players.push_back(Player(ImVec2(DefensiveLineHeight, (Pitch.y / 2) + CBWidth), 19, "Raphael Varane")); // RCB
-			team1Players.push_back(Player(ImVec2(DefensiveLineHeight + FullBackHeightOffset, (Pitch.y / 2) + FBWidth), 20, "Diogo Dalot")); // RB
+			team1Players.push_back(SimplePlayer(ImVec2(DefensiveLineHeight+FullBackHeightOffset, (Pitch.y / 2) - FBWidth), 23, "Luke Shaw")); // LB
+			team1Players.push_back(SimplePlayer(ImVec2(DefensiveLineHeight, (Pitch.y / 2) - CBWidth), 5, "Harry Maguire")); // LCB
+			team1Players.push_back(SimplePlayer(ImVec2(DefensiveLineHeight, (Pitch.y / 2) + CBWidth), 19, "Raphael Varane")); // RCB
+			team1Players.push_back(SimplePlayer(ImVec2(DefensiveLineHeight + FullBackHeightOffset, (Pitch.y / 2) + FBWidth), 20, "Diogo Dalot")); // RB
 
-			team1Players.push_back(Player(ImVec2(MidfieldLineHeight, (Pitch.y / 2)-CMWidth), 8, "Bruno Fernandes")); // LCM
-			team1Players.push_back(Player(ImVec2(MidfieldLineHeight+DMHeightOffset, (Pitch.y / 2)), 6, "Frenkie de Jong")); // CDM
-			team1Players.push_back(Player(ImVec2(MidfieldLineHeight, (Pitch.y / 2)+CMWidth), 17, "Fred")); // RCM
+			team1Players.push_back(SimplePlayer(ImVec2(MidfieldLineHeight, (Pitch.y / 2)-CMWidth), 8, "Bruno Fernandes")); // LCM
+			team1Players.push_back(SimplePlayer(ImVec2(MidfieldLineHeight+DMHeightOffset, (Pitch.y / 2)), 6, "Frenkie de Jong")); // CDM
+			team1Players.push_back(SimplePlayer(ImVec2(MidfieldLineHeight, (Pitch.y / 2)+CMWidth), 17, "Fred")); // RCM
 
-			team1Players.push_back(Player(ImVec2(AttackingLineHeight+WingerHeightOffset, (Pitch.y / 2)-WingerWidth), 25, "Jadon Sancho")); // LW
-			team1Players.push_back(Player(ImVec2(AttackingLineHeight, (Pitch.y / 2)), 7, "Cristiano Ronaldo")); // ST
-			team1Players.push_back(Player(ImVec2(AttackingLineHeight + WingerHeightOffset, (Pitch.y / 2)+WingerWidth), 11, "Antony")); // RW
+			team1Players.push_back(SimplePlayer(ImVec2(AttackingLineHeight+WingerHeightOffset, (Pitch.y / 2)-WingerWidth), 25, "Jadon Sancho")); // LW
+			team1Players.push_back(SimplePlayer(ImVec2(AttackingLineHeight, (Pitch.y / 2)), 7, "Cristiano Ronaldo")); // ST
+			team1Players.push_back(SimplePlayer(ImVec2(AttackingLineHeight + WingerHeightOffset, (Pitch.y / 2)+WingerWidth), 11, "Antony")); // RW
 
-			//for (Player p : team1Players) draw->AddCircleFilled(ImVec2(LeftEdge + (pos.x/Pitch.x)*PitchSize.x, TopEdge + (pos.y / Pitch.y) * PitchSize.y), markerSize, team1Col);
+			//for (SimplePlayer p : team1Players) draw->AddCircleFilled(ImVec2(LeftEdge + (pos.x/Pitch.x)*PitchSize.x, TopEdge + (pos.y / Pitch.y) * PitchSize.y), markerSize, team1Col);
 
 			ImFont *font = ImGui::GetFont(); // Get Font
 
 			// Iterate over players in Team 1
-			for (Player &p : team1Players) {
+			for (SimplePlayer&p : team1Players) {
 				ImVec2 pos = p.position; // Get position part
+				if (drawOutline) draw->AddCircle(ImVec2(LeftEdge + (pos.x / Pitch.x) * PitchSize.x, TopEdge + (pos.y / Pitch.y) * PitchSize.y), markerSize + 1, IM_COL32(0, 0, 0, 255)); // Draw outline
 				draw->AddCircleFilled(ImVec2(LeftEdge + (pos.x / Pitch.x) * PitchSize.x, TopEdge + (pos.y / Pitch.y) * PitchSize.y), markerSize, team1Col); // Draw marker for player
 
 				// Draw player number on marker, centering on marker
@@ -498,26 +502,27 @@ public:
 				if (showNumbers) draw->AddText(font, fontSize, ImVec2(LeftEdge + (pos.x / Pitch.x) * PitchSize.x - TextSize.x * 0.5f, TopEdge + (pos.y / Pitch.y) * PitchSize.y - TextSize.y * 0.5f), lineCol, std::to_string(p.number).c_str());
 			}
 
-			std::vector<Player> team2Players;
+			std::vector<SimplePlayer> team2Players;
 
-			team2Players.push_back(Player(ImVec2(Pitch.x - GKLineHeight, Pitch.y / 2), 31, "Ederson")); // GK
+			team2Players.push_back(SimplePlayer(ImVec2(Pitch.x - GKLineHeight, Pitch.y / 2), 31, "Ederson")); // GK
 
-			team2Players.push_back(Player(ImVec2(Pitch.x - (DefensiveLineHeight + FullBackHeightOffset), (Pitch.y / 2) - FBWidth), 27, "Joao Cancelo")); // LB
-			team2Players.push_back(Player(ImVec2(Pitch.x - DefensiveLineHeight, (Pitch.y / 2) - CBWidth), 14, "Aymeric Laporte")); // LCB
-			team2Players.push_back(Player(ImVec2(Pitch.x - DefensiveLineHeight, (Pitch.y / 2) + CBWidth), 5, "Ruben Dias")); // RCB
-			team2Players.push_back(Player(ImVec2(Pitch.x - (DefensiveLineHeight + FullBackHeightOffset), (Pitch.y / 2) + FBWidth), 2, "Kyle Walker")); // RB
+			team2Players.push_back(SimplePlayer(ImVec2(Pitch.x - (DefensiveLineHeight + FullBackHeightOffset), (Pitch.y / 2) - FBWidth), 27, "Joao Cancelo")); // LB
+			team2Players.push_back(SimplePlayer(ImVec2(Pitch.x - DefensiveLineHeight, (Pitch.y / 2) - CBWidth), 14, "Aymeric Laporte")); // LCB
+			team2Players.push_back(SimplePlayer(ImVec2(Pitch.x - DefensiveLineHeight, (Pitch.y / 2) + CBWidth), 5, "Ruben Dias")); // RCB
+			team2Players.push_back(SimplePlayer(ImVec2(Pitch.x - (DefensiveLineHeight + FullBackHeightOffset), (Pitch.y / 2) + FBWidth), 2, "Kyle Walker")); // RB
 
-			team2Players.push_back(Player(ImVec2(Pitch.x - MidfieldLineHeight, (Pitch.y / 2) - CMWidth), 17, "Kevin De Bruyne")); // LCM
-			team2Players.push_back(Player(ImVec2(Pitch.x - (MidfieldLineHeight + DMHeightOffset), (Pitch.y / 2)), 16, "Rodri")); // CDM
-			team2Players.push_back(Player(ImVec2(Pitch.x - MidfieldLineHeight, (Pitch.y / 2) + CMWidth), 20, "Bernardo Silva")); // RCM
+			team2Players.push_back(SimplePlayer(ImVec2(Pitch.x - MidfieldLineHeight, (Pitch.y / 2) - CMWidth), 17, "Kevin De Bruyne")); // LCM
+			team2Players.push_back(SimplePlayer(ImVec2(Pitch.x - (MidfieldLineHeight + DMHeightOffset), (Pitch.y / 2)), 16, "Rodri")); // CDM
+			team2Players.push_back(SimplePlayer(ImVec2(Pitch.x - MidfieldLineHeight, (Pitch.y / 2) + CMWidth), 20, "Bernardo Silva")); // RCM
 
-			team2Players.push_back(Player(ImVec2(Pitch.x - (AttackingLineHeight + WingerHeightOffset), (Pitch.y / 2) - WingerWidth), 47, "Phil Foden")); // LW
-			team2Players.push_back(Player(ImVec2(Pitch.x - AttackingLineHeight, (Pitch.y / 2)), 9, "Erling Haaland")); // ST
-			team2Players.push_back(Player(ImVec2(Pitch.x - (AttackingLineHeight + WingerHeightOffset), (Pitch.y / 2) + WingerWidth), 26, "Riyad Mahrez")); // RW
+			team2Players.push_back(SimplePlayer(ImVec2(Pitch.x - (AttackingLineHeight + WingerHeightOffset), (Pitch.y / 2) - WingerWidth), 47, "Phil Foden")); // LW
+			team2Players.push_back(SimplePlayer(ImVec2(Pitch.x - AttackingLineHeight, (Pitch.y / 2)), 9, "Erling Haaland")); // ST
+			team2Players.push_back(SimplePlayer(ImVec2(Pitch.x - (AttackingLineHeight + WingerHeightOffset), (Pitch.y / 2) + WingerWidth), 26, "Riyad Mahrez")); // RW
 
 			// Iterate over players in Team 2
-			for (Player& p : team2Players) {
+			for (SimplePlayer& p : team2Players) {
 				ImVec2 pos = p.position; // Get position part
+				if (drawOutline) draw->AddCircle(ImVec2(LeftEdge + (pos.x / Pitch.x) * PitchSize.x, TopEdge + (pos.y / Pitch.y) * PitchSize.y), markerSize+1, IM_COL32(0,0,0,255)); // Draw outline
 				draw->AddCircleFilled(ImVec2(LeftEdge + (pos.x / Pitch.x) * PitchSize.x, TopEdge + (pos.y / Pitch.y) * PitchSize.y), markerSize, team2Col); // Draw marker for player
 
 				// Draw player number on marker, centering on marker
@@ -530,15 +535,19 @@ public:
 
 			// Do name hover text at the very end so that markers are never rendered on top of the text
 			// If the user hovers over the player on the screen, display their name
-			for (Player& p : team1Players) {
+			for (SimplePlayer& p : team1Players) {
 				if (ImGui::IsMouseHoveringRect(ImVec2(LeftEdge + (p.position.x / Pitch.x) * PitchSize.x - markerSize, TopEdge + (p.position.y / Pitch.y) * PitchSize.y - markerSize),
 					ImVec2(LeftEdge + (p.position.x / Pitch.x) * PitchSize.x + markerSize, TopEdge + (p.position.y / Pitch.y) * PitchSize.y + markerSize))) { // Check if mouse is in bounding box around player marker
+					auto TextSize = ImGui::CalcTextSize(p.name);
+					draw->AddRectFilled(ImVec2(ImGui::GetMousePos().x, ImGui::GetMousePos().y - 20), ImVec2(ImGui::GetMousePos().x + TextSize.x, ImGui::GetMousePos().y - 20 + TextSize.y), IM_COL32(0, 0, 0, 100), 1.0f); // Draw transluscent background for text
 					draw->AddText(ImVec2(ImGui::GetMousePos().x, ImGui::GetMousePos().y - 20), lineCol, p.name); // Draw text above the cursor
 				}
 			}
-			for (Player& p : team2Players) {
+			for (SimplePlayer& p : team2Players) {
 				if (ImGui::IsMouseHoveringRect(ImVec2(LeftEdge + (p.position.x / Pitch.x) * PitchSize.x - markerSize, TopEdge + (p.position.y / Pitch.y) * PitchSize.y - markerSize),
 					ImVec2(LeftEdge + (p.position.x / Pitch.x) * PitchSize.x + markerSize, TopEdge + (p.position.y / Pitch.y) * PitchSize.y + markerSize))) { // Check if mouse is in bounding box around player marker
+					auto TextSize = ImGui::CalcTextSize(p.name);
+					draw->AddRectFilled(ImVec2(ImGui::GetMousePos().x, ImGui::GetMousePos().y - 20), ImVec2(ImGui::GetMousePos().x + TextSize.x, ImGui::GetMousePos().y - 20 + TextSize.y), IM_COL32(0, 0, 0, 100), 1.0f); // Draw transluscent background for text
 					draw->AddText(ImVec2(ImGui::GetMousePos().x, ImGui::GetMousePos().y - 20), lineCol, p.name); // Draw text above the cursor
 				}
 			}
