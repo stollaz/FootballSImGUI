@@ -175,6 +175,74 @@ enum WindowState
 	Options
 };
 
+class PitchInfo {
+public:
+	int LeftEdge;
+	int RightEdge;
+	int TopEdge;
+	int BottomEdge;
+
+	ImVec2 TopLeft;
+	ImVec2 TopRight;
+	ImVec2 BottomLeft;
+	ImVec2 BottomRight;
+
+	ImVec2 Pitch;
+	ImVec2 PitchSize;
+
+	PitchInfo(ImVec2 topLeft, ImVec2 bottomRight, ImVec2 pitch, ImVec2 pitchSize) {
+		TopLeft = topLeft;
+		BottomRight = bottomRight;
+
+		LeftEdge = topLeft.x;
+		RightEdge = bottomRight.x;
+		TopEdge = topLeft.y;
+		BottomEdge = bottomRight.y;
+
+		TopRight = ImVec2(RightEdge, TopEdge);
+		BottomLeft = ImVec2(LeftEdge, BottomEdge);
+
+		Pitch = pitch;
+		PitchSize = pitchSize;
+	}
+};
+
+// TODO:
+// Move render marker function to player class so that each player can render their own marker
+// For debugging this means that individual players can easily display their status
+// E.G. for match engine testing, can highlight who is making a pass to who, etc.
+// Need to figure out how to deal with accessing pitch info (e.g. edges and corners of render area), as well as positional lines and offsets
+class PlayerOnPitch {
+public:
+	ImVec2 position;
+	int number;
+	char* name;
+	bool isSelected = false;
+	int markerSize;
+
+	PitchInfo pitchInfo;
+
+	ImU32 colour;
+	ImU32 outlineColour;
+	ImU32 textColour;
+
+	void DrawMarker(bool showNumber, bool drawOutline, ImDrawList* draw) {
+		if (drawOutline) 
+			draw->AddCircle(ImVec2(pitchInfo.LeftEdge + (position.x / pitchInfo.Pitch.x) * pitchInfo.PitchSize.x, pitchInfo.TopEdge + (position.y / pitchInfo.Pitch.y) * pitchInfo.PitchSize.y), markerSize + 1, outlineColour); // Draw outline
+		draw->AddCircleFilled(ImVec2(pitchInfo.LeftEdge + (position.x / pitchInfo.Pitch.x) * pitchInfo.PitchSize.x, pitchInfo.TopEdge + (position.y / pitchInfo.Pitch.y) * pitchInfo.PitchSize.y), markerSize, colour); // Draw marker for player
+
+		// Draw player number on marker, centering on marker
+		float fontSize = 2 * markerSize;
+		auto TextSize = ImGui::CalcTextSize(std::to_string(number).c_str());
+		TextSize.x *= (fontSize / 20);
+		TextSize.y *= (fontSize / 20);
+		if (showNumber) 
+			draw->AddText(ImGui::GetFont(), fontSize, ImVec2(pitchInfo.LeftEdge + (position.x / pitchInfo.Pitch.x) * pitchInfo.PitchSize.x - TextSize.x * 0.5f, pitchInfo.TopEdge + (position.y / pitchInfo.Pitch.y) * pitchInfo.PitchSize.y - TextSize.y * 0.5f), textColour, std::to_string(number).c_str());
+	}
+
+	PlayerOnPitch(ImVec2 _p, int _num, char* _name, PitchInfo _pitchInfo) : position(_p), number(_num), name(_name), pitchInfo(_pitchInfo) {};
+};
+
 class SimplePlayer {
 public:
 	ImVec2 position;
@@ -406,6 +474,10 @@ public:
 		localHalfway = (LeftEdge + RightEdge) / 2; // Define the local halfway point on the screen
 
 		Centre = ImVec2((LeftEdge + RightEdge) / 2, (TopEdge + BottomEdge) / 2); // Define the local centre of the pitch on the screen
+
+		// Only modify object if there are changes
+		if (pitchInfo.TopEdge != TopEdge || pitchInfo.BottomEdge != BottomEdge || pitchInfo.RightEdge != RightEdge || pitchInfo.LeftEdge != LeftEdge)
+			pitchInfo = PitchInfo(TopLeft, BottomRight, Pitch, PitchSize);
 
 		// Draw pitch
 		RenderPitch(draw);
@@ -803,6 +875,8 @@ private:
 	int localHalfway; // Define the local halfway point on the screen
 
 	ImVec2 Centre; // Define the local centre of the pitch on the screen
+
+	PitchInfo pitchInfo = PitchInfo(TopLeft, BottomRight, Pitch, PitchSize);
 };
 
 Walnut::Application* Walnut::CreateApplication(int argc, char** argv)
