@@ -279,6 +279,85 @@ public:
 	}
 };
 
+enum CardState {
+	None,
+	Yellow,
+	Red
+};
+
+// Enum for state of player in simulation
+// TODO: Trim and refine these
+enum PlayerState {
+	// Neutral States
+	Null, // Null state, for absent players or to indicate no future plan
+	Idle, // Idle, not moving (e.g. waiting in position)
+	Positioning, // Moving into / remaining in default position
+	MovingToBall, // Moving directly to the ball
+	// Defensive States
+	Clearing, // In the process of clearing the ball in any direction 
+	MovingToBlock, // Moving into a position to block the ball, between ball and goal
+	Chasing, // Chasing after a player in posession of the ball (out of posession)
+	Intercepting, // Looking to intercept / collect a loose ball
+	Covering, // (Rename) Looking to get between ball and goal (defensive)
+	Tackling, // Making a tackle
+	TacklingHard, // Making a hard (desperate) tackle
+	TacklingSoft, // Making a soft (safe, on booking) tackle
+	Heading, // Looking to win a header (clearance / defensive)
+	Marking, // Marking a given location / player
+	// Ball Carrying actions
+	Dribbling, // Dribbling with the ball to a given area (moving)
+	Shielding, // Shielding the ball from an opponent (stationary)
+	// Ball Progressing Actions
+	Scanning, // In the process of looking for a teammate to pass to
+	Passing, // In the process of passing the ball (ground)
+	CrossingAir, // In the process of crossing the ball (high for header)
+	CrossingLow, // In the process of crossing the bacll low
+	ThroughBall, // Making a through ball
+	// Attacking Actions
+	LookingForSpace, // Looking for and moving into open space to recieve the ball
+	CallingForBall, // Calling for the ball from a teammate
+	LiningUpShot, // In the process of lining up a shot
+	Shooting, // In the process of shooting the ball
+	ShootingFinesse, // In the process of shooting the ball with placement over power
+	ShootingPower, // In the process of shooting the ball with power over placement
+	Attacking, // Moving into an attacking position
+	HeadingAttacking, // Looking to win a header (to shoot / attacking)
+	Overlapping, // Overlapping in a wide area (player out of posession)
+	Underlapping, // Underlapping from a wide area (player out of posession)
+	Penalty, // Taking a penalty
+	FreeKickDirect, // Taking a direct free kick, looking to shoot
+	FreeKickIndirect, // Taking an indirect free kick, looking to pass
+	// Goalkeeping Actions
+	GKIdle, // Goalkeeping idle, neutral positioning
+	Sweeping, // Goalkeeper sweeping to collect a loose ball
+	GKAlert, // Goalkeeper alert to danger, moving between ball and goal
+	Saving, // In the process of making a save
+	Kicking, // In the process of making a goal kick / free kick
+	GKShortPass, // In the process of making a short pass to defender
+	GKLongPass, // In the process of making a long pass upfield
+};
+
+// Class to store information about a player in a simulation
+class PlayerInSimulation {
+public:
+	PlayerInSimulation() {}
+private:
+	PlayerState state; // State of the player
+	PlayerState plannedState; // Planned next state of player (e.g. currently dribbling, planning to shoot)
+
+	ImVec2 position; // Current osition of the player
+	ImVec2 neutralPosition; // Neutral / starting position of the player
+	ImVec2 targetPosition; // Target position (e.g. for dribbling, marking)
+	bool hasBall; // Whether the player is in control of the ball or not
+	float fitness; // Fitness level on scale from 0.0 (dead) to 1.0 (perfectly fit)
+	CardState card; // The state of the card for the player
+
+	char* name;
+	// TODO: Stats
+	//		Or link to existing player object with this information, and keep this class for simulation information
+};
+
+// Enum for state of the simulator
 enum SimulationState {
 	Off,
 	Running,
@@ -373,6 +452,9 @@ public:
 		matchTimeElapsed += (ImGui::GetTime() - lastTickTime) * timeMultiplier; // Increment match time elapsed (considering time multiplier)
 		lastTickTime = ImGui::GetTime(); // Set last tick time to current time
 		calculateMatchTime(); // Recalculate match time
+
+		// DO CALCULATIONS PER TICK
+		// e.g. move players, move ball, etc.
 	}
 
 	// TODO
