@@ -252,6 +252,8 @@ public:
 	SimplePlayer(ImVec2 _p, int _num, char* _name) : position(_p), number(_num), name(_name) {};
 };
 
+// So much of this needs to be moved into header files etc. eventually
+
 // TODO
 // Determines a line of a formation (maybe not needed)
 class FormationLine {
@@ -279,14 +281,17 @@ public:
 	}
 };
 
+// Enum for what level of booking a player has
 enum CardState {
 	None,
+	// Warning? Intermediate stages could be useful for dictating how careful a player should be, but this could also be done with a simple float and leave the enum for concrete card values
 	Yellow,
+	// Final warning?
 	Red
 };
 
-// Enum for player mentalities, dictating the manner in which they will react in certain situations
-enum PlayerMentality {
+// Enum for player / team mentalities, dictating the manner in which they will react in certain situations
+enum Mentality {
 	UltraDefence, // Ultra defensive, will always look to defend even when an attacking opportunity arises (for endgame final defence)
 	Defence, // Defensive, will look to remain back at most times
 	Support, // Supportive, will look to aid transitions (stay back during advanced attacks, stay forward during sustained defence in order to carry ball)
@@ -365,6 +370,21 @@ enum TeamStyleAttackingLine {
 };
 */
 
+// Potential enum of player traits to further dictate how a player reacts
+// Some of the potential traits could also be attributes (e.g. shooting tendency)
+enum PlayerTraits {
+	ShootsFirstTime,
+	PlacesShots,
+	ShootsWithPower,
+	SafeClearences,
+	HardTackler,
+	SoftTackler,
+	RunsWithBall, // Could be attribute (passing tendency vs dribbling tendency)
+	DirectPasser, // Could be attribute (passing directness / passing safety)
+	SafePasser,
+	HoldsUpPlay
+};
+
 // Enum for state of player in simulation
 // TODO: Trim and refine these
 enum PlayerState {
@@ -417,17 +437,39 @@ enum PlayerState {
 	GKLongPass, // In the process of making a long pass upfield
 };
 
+class TeamInSimulation {
+public:
+	//
+private:
+	//
+	std::vector<PlayerInSimulation> players;
+	Mentality teamMentality;
+
+	// Attributes for style of play (e.g. directness, tempo, width, formation, instructions)
+};
+
 // Class to store information about a player in a simulation
+// TODO: Figure out if this itself stores player attribute informaiton, or just another player class and then uses that information to simulate activity
 class PlayerInSimulation {
 public:
 	PlayerInSimulation() {}
+
+	void setState(PlayerState s) {} // Set the player state
+	void addState(PlayerState s) {} // Add a state to the queue
+	void setTargetPos(ImVec2 p) {} // Set the target position to be acted on with the state
+	void changeMentality(Mentality m) {} // Change the player mentality considering the flow of the game
+	void addTrait(PlayerTraits t) {} // Give the player a trait (maybe this eventually comes from the base player class though)
+	void modifyFitness(float f) {} // Modify the player's fitness by an amount (e.g. applying an injury or incremental fitness decline over the course of a match)
+
 private:
 	PlayerState state; // State of the player
 	PlayerState plannedState; // Planned next state of player (e.g. currently dribbling, planning to shoot)
+	// states could also be done in a form of queue, so multiple could be submitted at once (e.g. moving to a location to pass and then overlap, or move then shoot etc.)
 
 	PlayerRole role;
 	PlayerWidth width;
-	PlayerMentality mentality;
+	Mentality playerMentality;
+	std::vector<PlayerTraits> traits; // Potential storage of player traits
 
 	// TODO: Attributes for how much deviation from role / width / mentality is allowed ?
 
@@ -438,17 +480,43 @@ private:
 	float fitness; // Fitness level on scale from 0.0 (dead) to 1.0 (perfectly fit)
 	CardState card; // The state of the card for the player
 
-	char* name;
+	char* name; // Player name? Or link to existing player class
+	// Team team; // Team information (e.g. formation, other players, team mentality)
 	// TODO: Attributes (e.g. speed, height, finishing etc.)
 	//		Or link to existing player object with this information, and keep this class for simulation information
+
+	// Stats (maybe these want to be public just to make modification easier, and to avoid having dozens of setters)
+	/*float distanceRun;
+	int touches;
+	int goals;
+	int assists;
+	int passesAttempted;
+	int passesCompleted;
+	int crossesAttempted;
+	int crossesCompleted;
+	int tacklesAttempted;
+	int tacklesCompleted;
+	int interceptionsAttempted;
+	int interceptionsCompleted;
+	int blocks;
+	int clearances;
+	int saves;
+	int dribblesAttempted;
+	int dribblesCompleted;
+	int shots;
+	int shotsOnTarget;
+	int shotsOffTarget;
+	int shotsBlocked;
+	int hitWoodwork;
+	int xGAccumulated;*/
 };
 
 // Enum for state of the simulator
 enum SimulationState {
-	Off,
-	Running,
-	Paused,
-	Stopped,
+	Off, // Simulation is disabled
+	Running, // Simulation is running 
+	Paused, // Simulation is temporarily paused with current state saved
+	Stopped, // Simulation is stopped (likely unused and unecessary)
 };
 
 class Simulator {
@@ -587,7 +655,6 @@ private:
 	int TPS; // Ticks per second
 	float tickTime; // Length of a tick in ms
 	float timeMultiplier; // Multiplier to passage of time (e.g. 1.0 is normal speed, 0.5 is half speed, 2.0 is double speed)
-	ImVec2 ballPosition; // Position of the ball
 	SimulationState state; // State of the system as an enum
 
 	int tickNumber; // Current tick number
@@ -612,6 +679,7 @@ private:
 	// Decide whether to store position and action in input player type or within the class
 	std::vector<SimplePlayer> team1;
 	std::vector<SimplePlayer> team2;
+	ImVec2 ballPosition; // Position of the ball on the pitch
 };
 
 class FootballUITest : public Walnut::Layer
