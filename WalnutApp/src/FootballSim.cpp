@@ -252,6 +252,107 @@ public:
 	SimplePlayer(ImVec2 _p, int _num, char* _name) : position(_p), number(_num), name(_name) {};
 };
 
+// TODO
+// Determines a line of a formation (maybe not needed)
+class FormationLine {
+public:
+	bool isWide; // Determines whether the line is wide or not (e.g. front 3 with wingers vs front 3 with all strikers
+};
+
+// TODO
+// Defines a custom formation defined by number of players in each line, offsets of players in lines, etc.
+class Formation {
+public:
+	bool hasDM;
+	bool hasAM;
+	bool hasWingers;
+	bool hasFullbacks;
+
+	std::vector<int> lineCounts;
+
+	Formation(std::vector<int> _lineCounts) {
+		bool valid = true;
+
+		int sum = 0;
+		for (int x : _lineCounts) sum += x;
+		if (sum != 10) valid = false;
+	}
+};
+
+class Simulator {
+public:
+	// Initialise the simulator class
+	Simulator(int _tps) {
+		TPS = _tps;
+		tickTime = 1000 / (float)TPS;
+		timeMultiplier = 1.0f;
+	}
+
+	void setTPS(int t) {
+		if (t < 1) ImGui::BeginPopup("Tick rate must be positive");
+		if (t > 1000) ImGui::BeginPopup("Tick rate must be less than 1000");
+		else TPS = t;
+	}
+	int getTPS() { return TPS; }
+
+	float getTickTime() { return tickTime; }
+
+	void setTimeMultiplier(float t) {
+		if (t <= 0.0f) ImGui::BeginPopup("Time multiplier must be greater than zero");
+		else if (t >= 10.0f) ImGui::BeginPopup("Time multiplier must be less than 10");
+		else timeMultiplier = t;
+	}
+	float getTimeMultiplier() { return timeMultiplier; }
+
+	// TODO
+	// Initialise the simulation (might be the same as Begin)
+	void Initialise() {
+
+	}
+
+	// TODO
+	// Begin the simulation
+	void Begin() {
+
+	}
+
+	// TODO
+	// Step through the simulation
+	void Step() {
+
+	}
+
+	// TODO
+	// Pause the simulation
+	void Pause() {
+
+	}
+	
+	// TODO
+	// Stop the simulation
+	void Stop() {
+
+	}
+
+	// TODO
+	// Reset the simulation
+	void Reset() {
+
+	}
+
+private:
+	int TPS; // Ticks per second
+	float tickTime; // Length of a tick in ms
+	float timeMultiplier; // Multiplier to passage of time (e.g. 1.0 is normal speed, 0.5 is half speed, 2.0 is double speed)
+	ImVec2 ballPosition; // Position of the ball
+
+	// Player vectors
+	// Probably want to use something more complex than SimplePlayer
+	// Decide whether to store position and action in input player type or within the class
+	std::vector<SimplePlayer> team1;
+	std::vector<SimplePlayer> team2;
+};
+
 class FootballUITest : public Walnut::Layer
 {
 public:
@@ -541,6 +642,41 @@ public:
 		ImGui::Text("%.1f FPS", ImGui::GetIO().Framerate);
 	}
 
+	// Show the settings
+	void RenderSimSettings() {
+		ImGui::SliderInt("Tick Rate (TPS)", &TPS, 1, 64);
+		ImGui::NewLine();
+		if (ImGui::Button("Start Simulation")) {
+			// TODO
+		}
+
+		ImGui::NewLine();
+
+		ImGui::SliderFloat("Marker Size", &MarkerSize, 5, 15);
+
+		ImGui::Checkbox("Show Numbers", &showNumbers);
+		ImGui::Checkbox("Draw Outline", &drawOutline);
+
+		if (ImGui::Button("Reset")) {
+			GKLineHeight = 7; // ?? to ??
+			DefensiveLineHeight = 20; // ?? to ??
+			MidfieldLineHeight = 37; // ?? to ??
+			AttackingLineHeight = 50; // ?? to ??
+
+			WingerWidth = 35; // 0 to 45
+			FBWidth = 35; // 0 to 45
+			CMWidth = 10; // 0 to 45
+			CBWidth = 10; // 0 to 45
+
+			FullBackHeightOffset = 0;
+			DMHeightOffset = -5;
+			WingerHeightOffset = -3;
+		}
+
+		ImGui::NewLine();
+		ImGui::Text("%.1f FPS", ImGui::GetIO().Framerate);
+	}
+
 	// TODO: Fix options so window can be resized
 	virtual void OnUIRender() override
 	{
@@ -576,12 +712,12 @@ public:
 			ImGui::SliderFloat("Spacing 2", &spacing2, -10, 10);*/
 
 			ImGui::SetCursorPos(ImVec2(ThisRegionSize.x/4 -50,2.0f*ThisRegionSize.y/3));
-			if (ImGui::Button("Pitch Test", ImVec2(100, 30))) {
+			if (ImGui::Button("Render Test", ImVec2(100, 30))) {
 				_windowState = WindowState::Debug1;
 			}
 			ImGui::SetCursorPos(ImVec2(2*ThisRegionSize.x / 4 -50, 2.0f * ThisRegionSize.y / 3));
 			//ImGui::SameLine(spacing1, spacing2); 
-			if (ImGui::Button("Debug 2", ImVec2(100,30))) {
+			if (ImGui::Button("Sim Test", ImVec2(100,30))) {
 				_windowState = WindowState::Debug2;
 			}
 			ImGui::SetCursorPos(ImVec2(3*ThisRegionSize.x / 4 -50, 2.0f * ThisRegionSize.y / 3));
@@ -645,7 +781,7 @@ public:
 			}
 			ImGui::SetCursorPos(ImVec2(2 * ThisRegionSize.x / 4 - 50, 2.0f * ThisRegionSize.y / 3));
 			//ImGui::SameLine(spacing1, spacing2); 
-			if (ImGui::Button("Debug 2", ImVec2(100, 30))) {
+			if (ImGui::Button("Sim Test", ImVec2(100, 30))) {
 				_windowState = WindowState::Debug2;
 			}
 			ImGui::SetCursorPos(ImVec2(3 * ThisRegionSize.x / 4 - 50, 2.0f * ThisRegionSize.y / 3));
@@ -656,10 +792,24 @@ public:
 			ImGui::End();
 		}
 		else if (_windowState == WindowState::Debug2) {
-			ImGui::Begin("Simulate Full Season", _pOpen, _windowFlags);
+			ImGui::Begin("Simulation Test", _pOpen, _windowFlags);
 			ImGui::SetWindowSize(_windowSize);
 			ImVec2 ThisRegionSize = ImGui::GetContentRegionAvail();
 			ImVec2 textSize = ImGui::CalcTextSize(name);
+
+			ImGui::Begin("Settings");
+
+			RenderSimSettings();
+
+			ImGui::End();
+
+			ImGui::Begin("Pitch");
+
+			RenderGame();
+
+			ImGui::End();
+
+			// Rest of generic debug window settings for navigation
 
 			ImVec2 initialPos = ImGui::GetCursorPos();
 			ImVec2 newPos = ImVec2(ThisRegionSize.x / 2 - textSize.x / 2, ThisRegionSize.y / 3);
@@ -671,7 +821,7 @@ public:
 			ImGui::SetCursorPos(initialPos);
 
 			ImGui::SetWindowFontScale(2.0f);
-			ImGui::Text("Simulate Full Season");
+			ImGui::Text("Simulation Test");
 			ImGui::SetWindowFontScale(1.0f);
 			ImGui::Text("Window size is %dx%d", (int)_windowSize.x, (int)_windowSize.y);
 			ImGui::Text("This content region size is %dx%d", (int)ThisRegionSize.x, (int)ThisRegionSize.y);
@@ -685,7 +835,7 @@ public:
 			}
 			ImGui::SetCursorPos(ImVec2(2 * ThisRegionSize.x / 4 - 50, 2.0f * ThisRegionSize.y / 3));
 			//ImGui::SameLine(spacing1, spacing2); 
-			if (ImGui::Button("Debug 1", ImVec2(100, 30))) {
+			if (ImGui::Button("Render Test", ImVec2(100, 30))) {
 				_windowState = WindowState::Debug1;
 			}
 			ImGui::SetCursorPos(ImVec2(3 * ThisRegionSize.x / 4 - 50, 2.0f * ThisRegionSize.y / 3));
@@ -725,12 +875,12 @@ public:
 			}
 			ImGui::SetCursorPos(ImVec2(2 * ThisRegionSize.x / 4 - 50, 2.0f * ThisRegionSize.y / 3));
 			//ImGui::SameLine(spacing1, spacing2); 
-			if (ImGui::Button("Debug 1", ImVec2(100, 30))) {
+			if (ImGui::Button("Render Test", ImVec2(100, 30))) {
 				_windowState = WindowState::Debug1;
 			}
 			ImGui::SetCursorPos(ImVec2(3 * ThisRegionSize.x / 4 - 50, 2.0f * ThisRegionSize.y / 3));
 			//ImGui::SameLine(spacing1, spacing2); 
-			if (ImGui::Button("Debug 2", ImVec2(100, 30))) {
+			if (ImGui::Button("Sim Test", ImVec2(100, 30))) {
 				_windowState = WindowState::Debug2;
 			}
 			ImGui::End();
@@ -781,44 +931,6 @@ public:
 
 			ImGui::End();
 		}
-
-		//else if (_windowState == WindowState::Debug3) {
-		//	ImGui::Begin("Debug 2", p_open, window_flags);
-
-		//	ImGui::SetWindowFontScale(2.0f);
-		//	ImGui::Text("DEBUG 3");
-		//	ImGui::SetWindowFontScale(1.0f);
-
-		//	static float spacing1 = 0.0f;
-		//	static float spacing2 = 15.0f;
-		//	/*ImGui::SliderFloat("Spacing 1", &spacing1, -10, 10);
-		//	ImGui::SliderFloat("Spacing 2", &spacing2, -10, 10);*/
-
-		//	if (ImGui::Button("Main Menu", ImVec2(100, 30))) {
-		//		_windowState = WindowState::MainMenu;
-		//	}
-		//	ImGui::SameLine(spacing1, spacing2);
-		//	if (ImGui::Button("Debug 1", ImVec2(100, 30))) {
-		//		_windowState = WindowState::Debug1;
-		//	}
-		//	ImGui::SameLine(spacing1, spacing2);
-		//	if (ImGui::Button("Debug 2", ImVec2(100, 30))) {
-		//		_windowState = WindowState::Debug2;
-		//	}
-		//	ImGui::SameLine(spacing1, spacing2);
-		//	if (ImGui::Button("Debug 3", ImVec2(100, 30))) {
-		//		_windowState = WindowState::Debug3;
-		//	}
-		//	/*ImGui::SameLine(spacing1, spacing2);
-		//	if (ImGui::Button("New Window")) {
-		//		ImGui::BeginPopupContextWindow("Testing");
-		//		ImGui::Begin("New Window");
-		//		ImGui::End();
-		//	}*/
-		//	ImGui::End();
-		//}
-
-		//ImGui::ShowDemoWindow();
 	}
 private:
 	WindowState _windowState = WindowState::MainMenu;
@@ -847,6 +959,9 @@ private:
 
 	bool showNumbers = false; // To show shirt numbers or not
 	bool drawOutline = true; // To draw an outline around player markers or not
+
+	int TPS = 20; // Tick rate in ticks per second
+	float tickTime = 1000 / TPS; // Tick time in ms
 
 	// Initialise colours
 	// TODO: Make these global with color picker for team colors
