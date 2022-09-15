@@ -279,30 +279,73 @@ public:
 	}
 };
 
+enum SimulationState {
+	Off,
+	Running,
+	Paused,
+	Stopped,
+};
+
 class Simulator {
 public:
 	// Initialise the simulator class
 	Simulator(int _tps) {
 		TPS = _tps;
 		tickTime = 1000 / (float)TPS;
+		lastTickTime = 0;
 		timeMultiplier = 1.0f;
+		state = SimulationState::Off;
+		tickNumber = 0;
+		startTime = NULL;
+		timeElapsed = NULL;
+		matchTimeElapsed = NULL;
+		matchTimeMins = 0;
+		matchTimeSecs = 0;
 	}
 
+	// Public setter for the TPS 
 	void setTPS(int t) {
 		if (t < 1) ImGui::BeginPopup("Tick rate must be positive");
 		if (t > 1000) ImGui::BeginPopup("Tick rate must be less than 1000");
 		else TPS = t;
+		setTickTime();
 	}
-	int getTPS() { return TPS; }
+	int getTPS() { return TPS; } // Public getter for the TPS
 
-	float getTickTime() { return tickTime; }
+	float getTickTime() { return tickTime; } // Public getter for the time per tick
 
+	// Public setter for the match time multiplier
 	void setTimeMultiplier(float t) {
 		if (t <= 0.0f) ImGui::BeginPopup("Time multiplier must be greater than zero");
 		else if (t >= 10.0f) ImGui::BeginPopup("Time multiplier must be less than 10");
 		else timeMultiplier = t;
 	}
-	float getTimeMultiplier() { return timeMultiplier; }
+	float getTimeMultiplier() { return timeMultiplier; } // Public getter for the match time multiplier
+
+	float getLastTickTime() { return lastTickTime; } // Public getter for current tick number
+	float getStartTime() { return startTime; } // Public getter for start time of simulation
+	float getTimeElapsed() { return timeElapsed; } // Public getter for the time elapsed in simulation
+
+	int getMatchTimeMins() { return matchTimeMins; } // Public getter for match time in minutes
+	int getMatchTimeSecs() { return matchTimeSecs; } // Public getter for match time in seconds
+
+	// Public function to get a string explaining the state of the simulator
+	char* printState() {
+		switch (state) {
+			case SimulationState::Off:
+				return "Simulation is off.";
+			case SimulationState::Paused:
+				return "Simulation is paused.";
+			case SimulationState::Running:
+				return "Simulation is running.";
+			case SimulationState::Stopped:
+				return "Simulation is stopped.";
+			default:
+				return "Simulation is undefined. Error.";
+		}
+	}
+
+	SimulationState getState() { return state; } // Public getter for simulator state as a SimulationState enum
 
 	// TODO
 	// Initialise the simulation (might be the same as Begin)
@@ -313,31 +356,60 @@ public:
 	// TODO
 	// Begin the simulation
 	void Begin() {
-
+		if (state != SimulationState::Off); // Do some popup as this is illegal
+		else {
+			state = SimulationState::Running; // Set the state
+			startTime = ImGui::GetTime(); // Initialise start time to current time
+			lastTickTime = ImGui::GetTime(); // Set last tick time to current time
+			calculateMatchTime(); 
+		}
 	}
 
 	// TODO
-	// Step through the simulation
+	// Step through the simulation - to be run on each tick
 	void Step() {
-
+		tickNumber++; // Increment tick number
+		timeElapsed += ImGui::GetTime() - lastTickTime; // Increment time elapsed (to avoid elapsing time while paused / stopped)
+		matchTimeElapsed += (ImGui::GetTime() - lastTickTime) * timeMultiplier; // Increment match time elapsed (considering time multiplier)
+		lastTickTime = ImGui::GetTime(); // Set last tick time to current time
+		calculateMatchTime(); // Recalculate match time
 	}
 
 	// TODO
 	// Pause the simulation
 	void Pause() {
+		if (state != SimulationState::Running); // Do some popup as this is illegal
+		else {
+			state = SimulationState::Paused;
+		}
+	}
 
+	// TODO
+	// Unpause the simulation
+	void Unpause() {
+		if (state != SimulationState::Paused); // Do some popup as this is illegal
+		else {
+			state = SimulationState::Running;
+			lastTickTime = ImGui::GetTime(); // When unpausing, set last tick time to now to avoid counting time while paused
+		}
 	}
 	
 	// TODO
 	// Stop the simulation
 	void Stop() {
-
+		if (state == SimulationState::Stopped || state == SimulationState::Off); // Do some popup as this is illegal
+		else {
+			state = SimulationState::Stopped;
+		}
 	}
 
 	// TODO
 	// Reset the simulation
 	void Reset() {
-
+		state = SimulationState::Off;
+		tickNumber = 0;
+		lastTickTime = 0;
+		startTime = NULL;
 	}
 
 private:
@@ -345,6 +417,24 @@ private:
 	float tickTime; // Length of a tick in ms
 	float timeMultiplier; // Multiplier to passage of time (e.g. 1.0 is normal speed, 0.5 is half speed, 2.0 is double speed)
 	ImVec2 ballPosition; // Position of the ball
+	SimulationState state; // State of the system as an enum
+
+	int tickNumber; // Current tick number
+	float lastTickTime; // Time of last tick
+	float startTime; // Time simulation was started
+	float timeElapsed; // Time elapsed during simulation (not counting time paused / stopped)
+	float matchTimeElapsed; // Match time elapsed (including time multiplier)
+
+	int matchTimeMins; // Minute of current match for scoreboard 
+	int matchTimeSecs; // Second *
+
+	void setTickTime() { tickTime = 1000.0f / (float)TPS; } // Private method to set tick time
+
+	// Private method to calculate the match time
+	void calculateMatchTime() {
+		matchTimeMins = (int)floor(matchTimeElapsed) / 60;
+		matchTimeSecs = (int)floor(matchTimeElapsed) % 60;
+	}
 
 	// Player vectors
 	// Probably want to use something more complex than SimplePlayer
@@ -645,12 +735,62 @@ public:
 	// Show the settings
 	void RenderSimSettings() {
 		ImGui::SliderInt("Tick Rate (TPS)", &TPS, 1, 64);
+		if (ImGui::IsItemEdited()) simulator.setTPS(TPS);
+
+		ImGui::SliderFloat("Time Multiplier", &timeMultiplier, 0.5, 5.0);
+		if (ImGui::IsItemEdited()) simulator.setTimeMultiplier(timeMultiplier);
+		if (ImGui::Button("Reset")) {
+			TPS = 20;
+			simulator.setTPS(20);
+			timeMultiplier = 1.0f;
+			simulator.setTimeMultiplier(1.0f);
+		}
+			;
 		ImGui::NewLine();
-		if (ImGui::Button("Start Simulation")) {
-			// TODO
+		ImGui::Text("%d TPS (%.1f ms per tick)", simulator.getTPS(), simulator.getTickTime());
+		//ImGui::Text("Current time: %f", simulator.getStartTime());
+		ImGui::NewLine();
+
+		ImVec2 pos = ImGui::GetCursorPos();
+		if (simulator.getState() == SimulationState::Off) {
+			if (ImGui::Button("Start Simulation", ImVec2(150,30))) {
+				// TODO
+				simulator.Begin();
+			}
+		}
+		else {
+			if (ImGui::Button("Reset Simulation", ImVec2(150, 30))) {
+				// TODO
+				simulator.Reset();
+			}
+		}
+		
+		ImGui::SetCursorPos(ImVec2(pos.x + 160, pos.y));
+		if (simulator.getState() == SimulationState::Paused) {
+			if (ImGui::Button("Unpause Simulation", ImVec2(150, 30))) {
+				// TODO
+				simulator.Unpause();
+			}
+		}
+		else {
+			if (ImGui::Button("Pause Simulation", ImVec2(150, 30))) {
+				// TODO
+				simulator.Pause();
+			}
 		}
 
+		ImGui::Text(simulator.printState());
 		ImGui::NewLine();
+
+		if (simulator.getState() == SimulationState::Running && ((ImGui::GetTime() - simulator.getLastTickTime()) * simulator.getTimeMultiplier() >= simulator.getTickTime() / 1000))  simulator.Step();
+		ImGui::Text("%d ticks have elapsed in simulation.", simulator.getTickNumber());
+		ImGui::Text("%.2f s have elapsed in simulation.", simulator.getTimeElapsed()); // This doesn't work as it doesnt account for time paused or stopped
+		//ImGui::Text("Match Time: %02d:%02d", (int)floor(simulator.getTimeElapsed())/60, (int)floor(simulator.getTimeElapsed()) % 60); // This doesn't work as it doesnt account for time paused or stopped
+		ImGui::Text("Match Time: %02d:%02d", simulator.getMatchTimeMins(), simulator.getMatchTimeSecs());
+		ImGui::NewLine();
+
+		ImGui::Separator();
+		// -----------
 
 		ImGui::SliderFloat("Marker Size", &MarkerSize, 5, 15);
 
@@ -960,9 +1100,6 @@ private:
 	bool showNumbers = false; // To show shirt numbers or not
 	bool drawOutline = true; // To draw an outline around player markers or not
 
-	int TPS = 20; // Tick rate in ticks per second
-	float tickTime = 1000 / TPS; // Tick time in ms
-
 	// Initialise colours
 	// TODO: Make these global with color picker for team colors
 	ImU32 team1Col = IM_COL32(255, 0, 0, 255);
@@ -992,6 +1129,12 @@ private:
 	ImVec2 Centre; // Define the local centre of the pitch on the screen
 
 	PitchInfo pitchInfo = PitchInfo(TopLeft, BottomRight, Pitch, PitchSize);
+
+	int TPS = 20; // Tick rate in ticks per second
+	float tickTime = 1000 / TPS; // Tick time in ms
+	float timeMultiplier = 1.0f; // Time multiplier
+
+	Simulator simulator = Simulator(20);
 };
 
 Walnut::Application* Walnut::CreateApplication(int argc, char** argv)
