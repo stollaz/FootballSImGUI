@@ -15,6 +15,12 @@ While I prefer to do my development within VSCode and building using a Makefile 
   - Players appear as markers with their shirt number on the marker
   - Hovering over a player marker will display the player name
   - The pitch is rendered mathematically, and stretches to fill the viewport
+- Debug2 contains test code for simulation
+  - Simulator class exists with code for starting, pausing, unpausing and resetting the simulation
+  - Steps and time elapsed are counted, along with a time muliplier and game time is counted
+  - Step function exists but does no game logic
+- Template player in simulation class exists
+- Enum for player states in simulation exists
 - Code exists for printing an event log to the screen
 
 ### TODO:
