@@ -285,6 +285,86 @@ enum CardState {
 	Red
 };
 
+// Enum for player mentalities, dictating the manner in which they will react in certain situations
+enum PlayerMentality {
+	UltraDefence, // Ultra defensive, will always look to defend even when an attacking opportunity arises (for endgame final defence)
+	Defence, // Defensive, will look to remain back at most times
+	Support, // Supportive, will look to aid transitions (stay back during advanced attacks, stay forward during sustained defence in order to carry ball)
+	Attack, // Attacking, will look to attack at most times
+	UltraAttack // Ultra attacking, will always look to attack even when conceding a chance (for endgame final push)
+};
+
+// Potential enum for player width to dictate where they stay horizontally in game (maybe not needed)
+enum PlayerWidth {
+	Central, // Will aim to stay central dependant on flow
+	WideLeft, // Will aim to stay on the left
+	CentreLeft, // Will aim to stay on the left of the centre
+	CentreRight, // " right of centre
+	WideRight, // Will aim to stay on the right
+	PureCentre, // Will always stay central regardless of flow
+	PureWideRight, // Will always stay right
+	PureWideLeft, // " left
+	InsideLeft, // Cuts in from the left
+	InsideRight, // Cuts in from the right
+	LeaningLeft, // Starts central but moves right when in posession
+	LeaningRight // " moves left "
+};
+
+// Enum for player roles that dictate how they react to situations in terms of the actions they perform
+enum PlayerRole {
+	Goalkeeper, // Standard, defensive goalkeeper
+	SweeperKeeper, // Proactive goalkeeper, looks to sweep and involve in transitions
+	CentreBack, // Standard defender
+	FullBack, // More defensive wide defender
+	WingBack, // More progressive wide defender / attacking
+	DefensiveMid, // Midfielder that prefers to defend
+	BallWinningMid, // Looks to win the ball at all times
+	CentreMid, // Standard central midefielder
+	BoxToBox, // Looks to progress the ball vertically
+	Playmaker, // Looks like play key passes from deeper
+	AdvancedPlaymaker, // Further up the pitch playmaker
+	WidePlaymaker, // Wider playmaker
+	WideMid, // Wide standard midfielder
+	DefensiveWideMid, // Defensive wide midfielder
+	AttackingMid, // Standard attacking midfielder
+	ShadowStriker, // Attacking midfielder that plays off the striker
+	Winger, // Wide attacker, looks to run with the ball 
+	InvertedWinger, // Looks to run with the ball from wide positions to inside and make passes 
+	InsideForward, // Looks to cut inside and score
+	WideForward, // Looks to score from wide positions
+	Striker, // Looks to score primarily
+	Poacher, // Looks only to get into positions to score, no build up
+	DeepLyingForward, // Looks to get involved in build up and score
+	TargetForward // Looks to win headers and be the target for long balls
+};
+
+// Potential enums for team playstyle, but these can likely be ints / floats instead as they don't need to be named apart from for readability
+/*
+enum TeamStyleDirectness {
+
+};
+
+enum TeamStyleTempo {
+
+};
+
+enum TeamStyleWidthAttack {
+
+};
+
+enum TeamStyleWidthDefence {
+
+};
+
+enum TeamStyleDefensiveLine {
+
+};
+
+enum TeamStyleAttackingLine {
+
+};
+*/
+
 // Enum for state of player in simulation
 // TODO: Trim and refine these
 enum PlayerState {
@@ -345,7 +425,13 @@ private:
 	PlayerState state; // State of the player
 	PlayerState plannedState; // Planned next state of player (e.g. currently dribbling, planning to shoot)
 
-	ImVec2 position; // Current osition of the player
+	PlayerRole role;
+	PlayerWidth width;
+	PlayerMentality mentality;
+
+	// TODO: Attributes for how much deviation from role / width / mentality is allowed ?
+
+	ImVec2 position; // Current position of the player on the pitch
 	ImVec2 neutralPosition; // Neutral / starting position of the player
 	ImVec2 targetPosition; // Target position (e.g. for dribbling, marking)
 	bool hasBall; // Whether the player is in control of the ball or not
@@ -353,7 +439,7 @@ private:
 	CardState card; // The state of the card for the player
 
 	char* name;
-	// TODO: Stats
+	// TODO: Attributes (e.g. speed, height, finishing etc.)
 	//		Or link to existing player object with this information, and keep this class for simulation information
 };
 
@@ -453,8 +539,11 @@ public:
 		lastTickTime = ImGui::GetTime(); // Set last tick time to current time
 		calculateMatchTime(); // Recalculate match time
 
+		// TODO
 		// DO CALCULATIONS PER TICK
 		// e.g. move players, move ball, etc.
+		// How does this interact with the pitch rendering?
+		//		Does it return data to then be rendered? Or render it directly?
 	}
 
 	// TODO
