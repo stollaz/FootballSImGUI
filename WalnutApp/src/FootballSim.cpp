@@ -261,10 +261,34 @@ public:
 	bool isWide; // Determines whether the line is wide or not (e.g. front 3 with wingers vs front 3 with all strikers
 };
 
+// Potential binary idea / layout (goalkeeper excluded as it is mandatory)
+/*
+    X  X  X			// STs
+X   X  X  X   X		// AMs / Wingers
+X   X  X  X   X		// CMs / Wide Midfielders
+X   X  X  X   X		// DMs / Wingbacks
+X   X  X  X   X		// CBs / Fullbacks
+
+Widemost are wide players, central are lone central players, left and right centre are left and right sided central players
+
+Then the whole thing can be a binary string / number from bottom to top, left to right
+e.g. 4-3-3 would be:
+	0  1  0			
+1   0  0  0   1		
+0   1  0  1   0		
+0   0  1  0   0		
+1   1  0  1   1		
+
+a.k.a. 11011 00100 01010 10001 010
+*/
+
 // TODO
 // Defines a custom formation defined by number of players in each line, offsets of players in lines, etc.
 class Formation {
 public:
+	// Instead of these, could take the input in a standardised way
+	// e.g. {CBs, FBs, WBs, DMs, CMs, AMs, WideMids, Wingers, STs}
+	// e.g. 4-3-3 would be {2,2,0,1,2,0,0,2,1}, 4-2-3-1 would be {2,2,0,0,2,1,2,0,1}, 3-4-3 would be {3,0,2,0,2,0,0,2,1}
 	bool hasDM;
 	bool hasAM;
 	bool hasWingers;
@@ -272,14 +296,24 @@ public:
 
 	std::vector<int> lineCounts;
 
-	Formation(std::vector<int> _lineCounts) {
+	Formation(std::vector<int> _lineCounts, bool _hasDM, bool _hasAM, bool _hasWingers, bool _hasFullbacks) {
 		bool valid = true;
 
 		int sum = 0;
 		for (int x : _lineCounts) sum += x;
 		if (sum != 10) valid = false;
+
+		hasDM = _hasDM;
+		hasAM = _hasAM;
+		hasWingers = _hasWingers;
+		hasFullbacks = _hasFullbacks;
 	}
 };
+
+// Test potential namespace for template formations
+namespace Formations {
+	Formation test = Formation(std::vector<int> {4, 3, 3}, true, false, true, true);
+}
 
 // Enum for what level of booking a player has
 enum CardState {
