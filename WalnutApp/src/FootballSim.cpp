@@ -45,6 +45,9 @@
 
 #include "simulator.h"
 
+#pragma warning( disable : 4244 )
+#pragma warning( disable : 4305 )
+
 using namespace Walnut;
 
 // Old event logging text stuff is here, use this once conflicts are solved
@@ -173,37 +176,37 @@ enum WindowState
 	Options
 };
 
-class PitchInfo {
-public:
-	int LeftEdge;
-	int RightEdge;
-	int TopEdge;
-	int BottomEdge;
-
-	ImVec2 TopLeft;
-	ImVec2 TopRight;
-	ImVec2 BottomLeft;
-	ImVec2 BottomRight;
-
-	ImVec2 Pitch;
-	ImVec2 PitchSize;
-
-	PitchInfo(ImVec2 topLeft, ImVec2 bottomRight, ImVec2 pitch, ImVec2 pitchSize) {
-		TopLeft = topLeft;
-		BottomRight = bottomRight;
-
-		LeftEdge = (int)topLeft.x;
-		RightEdge = (int)bottomRight.x;
-		TopEdge = (int)topLeft.y;
-		BottomEdge = (int)bottomRight.y;
-
-		TopRight = ImVec2(RightEdge, TopEdge);
-		BottomLeft = ImVec2(LeftEdge, BottomEdge);
-
-		Pitch = pitch;
-		PitchSize = pitchSize;
-	}
-};
+//class PitchInfo {
+//public:
+//	int LeftEdge;
+//	int RightEdge;
+//	int TopEdge;
+//	int BottomEdge;
+//
+//	ImVec2 TopLeft;
+//	ImVec2 TopRight;
+//	ImVec2 BottomLeft;
+//	ImVec2 BottomRight;
+//
+//	ImVec2 Pitch;
+//	ImVec2 PitchSize;
+//
+//	PitchInfo(ImVec2 topLeft, ImVec2 bottomRight, ImVec2 pitch, ImVec2 pitchSize) {
+//		TopLeft = topLeft;
+//		BottomRight = bottomRight;
+//
+//		LeftEdge = (int)topLeft.x;
+//		RightEdge = (int)bottomRight.x;
+//		TopEdge = (int)topLeft.y;
+//		BottomEdge = (int)bottomRight.y;
+//
+//		TopRight = ImVec2(RightEdge, TopEdge);
+//		BottomLeft = ImVec2(LeftEdge, BottomEdge);
+//
+//		Pitch = pitch;
+//		PitchSize = pitchSize;
+//	}
+//};
 
 // TODO:
 // Move render marker function to player class so that each player can render their own marker
@@ -238,7 +241,12 @@ public:
 			draw->AddText(ImGui::GetFont(), fontSize, ImVec2(pitchInfo.LeftEdge + (position.x / pitchInfo.Pitch.x) * pitchInfo.PitchSize.x - TextSize.x * 0.5f, pitchInfo.TopEdge + (position.y / pitchInfo.Pitch.y) * pitchInfo.PitchSize.y - TextSize.y * 0.5f), textColour, std::to_string(number).c_str());
 	}
 
-	PlayerOnPitch(ImVec2 _p, int _num, char* _name, PitchInfo _pitchInfo) : position(_p), number(_num), name(_name), pitchInfo(_pitchInfo) {};
+	PlayerOnPitch(ImVec2 _p, int _num, char* _name, PitchInfo _pitchInfo) : position(_p), number(_num), name(_name), pitchInfo(_pitchInfo) {
+		colour = IM_COL32(255, 0, 0, 255);
+		markerSize = 5.0f;
+		outlineColour = IM_COL32(0, 0, 0, 255);
+		textColour = IM_COL32(255, 255, 255, 255);
+	};
 };
 
 class SimplePlayer {
@@ -612,12 +620,12 @@ public:
 
 		// Add players to Teams
 		// Players have a position, number and name
-		std::vector<SimplePlayer> team1Players = CreateTeam1();
+		/*std::vector<SimplePlayer> team1Players = CreateTeam1();
 		std::vector<SimplePlayer> team2Players = CreateTeam2();
 
 		RenderPlayers(team1Players, team2Players, draw);
 
-		RenderBall(simulator.getBallPosition(), draw);
+		RenderBall(simulator.getBallPosition(), draw);*/
 		//RenderBallHoverText(b, draw);
 	}
 
@@ -666,7 +674,15 @@ public:
 	}
 
 	void SimulateGame() {
+		if (simulator.getState() == SimulationState::Running && ((ImGui::GetTime() - simulator.getLastTickTime()) * simulator.getTimeMultiplier() >= simulator.getTickTime() / 1000))  simulator.Step();
 
+		Renderer r = Renderer();
+		r.Initialise(ImVec2(120, 90));
+		r.SetDrawOutlines(true);
+		r.SetShowNumbers(true);
+
+		simulator.setRenderer(r);
+		if (simulator.getState() != SimulationState::Off) simulator.Render();
 	}
 
 	// Show the settings
@@ -719,7 +735,7 @@ public:
 		ImGui::Text(simulator.printState());
 		ImGui::NewLine();
 
-		if (simulator.getState() == SimulationState::Running && ((ImGui::GetTime() - simulator.getLastTickTime()) * simulator.getTimeMultiplier() >= simulator.getTickTime() / 1000))  simulator.Step();
+		//if (simulator.getState() == SimulationState::Running && ((ImGui::GetTime() - simulator.getLastTickTime()) * simulator.getTimeMultiplier() >= simulator.getTickTime() / 1000))  simulator.Step();
 		ImGui::Text("%d ticks have elapsed in simulation.", simulator.getTickNumber());
 		ImGui::Text("%.2f s have elapsed in simulation.", simulator.getTimeElapsed()); // This doesn't work as it doesnt account for time paused or stopped
 		//ImGui::Text("Match Time: %02d:%02d", (int)floor(simulator.getTimeElapsed())/60, (int)floor(simulator.getTimeElapsed()) % 60); // This doesn't work as it doesnt account for time paused or stopped
@@ -762,7 +778,7 @@ public:
 		ImGui::Text("Friction: {%.1f, %.1f, %.1f}", simulator.getBall().getFriction().x, simulator.getBall().getFriction().y, simulator.getBall().getFriction().z);
 		ImGui::Text("Air Resistance: {%.1f, %.1f, %.1f}", simulator.getBall().getAirResistance().x, simulator.getBall().getAirResistance().y, simulator.getBall().getAirResistance().z);
 
-		PlayerInSimulation p = PlayerInSimulation(glm::vec2(45, 45), PlayerRole::CentreMid, PlayerWidth::Central, Mentality::Support, "Test"); // Test player
+		//PlayerInSimulation p = PlayerInSimulation(glm::vec2(45, 45), PlayerRole::CentreMid, PlayerWidth::Central, Mentality::Support, "Test"); // Test player
 	}
 
 	// TODO: Fix options so window can be resized
@@ -893,8 +909,12 @@ public:
 
 			ImGui::Begin("Pitch");
 
+			// TODO: Switch to using renderer class to render things instead of doing it here
+			// Currently broken
 			RenderGame();
-			//SimulateGame();
+			SimulateGame();
+
+			//renderer.RenderPitch();
 
 			ImGui::End();
 
@@ -1066,16 +1086,16 @@ private:
 	int RightEdge;
 
 	// Define corners of the renderable pitch area
-	ImVec2 TopLeft;
-	ImVec2 TopRight;
-	ImVec2 BottomLeft;
-	ImVec2 BottomRight;
+	ImVec2 TopLeft = ImVec2(-1,-1);
+	ImVec2 TopRight = ImVec2(-1, -1);
+	ImVec2 BottomLeft = ImVec2(-1, -1);
+	ImVec2 BottomRight = ImVec2(-1, -1);
 
-	ImVec2 PitchSize; // Define the pitch size on the screen
+	ImVec2 PitchSize = ImVec2(-1, -1); // Define the pitch size on the screen
 
-	int localHalfway; // Define the local halfway point on the screen
+	int localHalfway = -1;; // Define the local halfway point on the screen
 
-	ImVec2 Centre; // Define the local centre of the pitch on the screen
+	ImVec2 Centre = ImVec2(-1, -1); // Define the local centre of the pitch on the screen
 
 	PitchInfo pitchInfo = PitchInfo(TopLeft, BottomRight, Pitch, PitchSize);
 
@@ -1085,10 +1105,12 @@ private:
 
 	Ball b = Ball(glm::vec3(Pitch.x / 2, Pitch.y / 2, 0), 1.0f, 0.1f, 0.0f);
 	Simulator simulator = Simulator(TPS, b);
+	//Renderer renderer = Renderer(Pitch);
 };
 
 Walnut::Application* Walnut::CreateApplication(int argc, char** argv)
 {
+	srand(time(NULL));
 	Walnut::ApplicationSpecification spec;
 	spec.Name = "Walnut Example";
 

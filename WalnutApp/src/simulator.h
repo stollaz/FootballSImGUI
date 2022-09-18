@@ -2,6 +2,8 @@
 #include "glm/vec3.hpp"
 #include "glm/mat3x3.hpp"
 
+#pragma warning( disable : 4244 )
+#pragma warning( disable : 4305 )
 // Enum for what level of booking a player has
 enum CardState {
 	None,
@@ -157,7 +159,7 @@ private:
 // TODO: Figure out if this itself stores player attribute informaiton, or just another player class and then uses that information to simulate activity
 class PlayerInSimulation {
 public:
-	PlayerInSimulation(glm::vec2 _initialPosition, PlayerRole _role, PlayerWidth _width, Mentality _mentality, char* _name, std::vector<PlayerTraits> _traits = {}) {
+	PlayerInSimulation(glm::vec2 _initialPosition, int _number, PlayerRole _role, PlayerWidth _width, Mentality _mentality, char* _name, std::vector<PlayerTraits> _traits = {}) {
 		position = _initialPosition;
 		neutralPosition = _initialPosition;
 		targetPosition = _initialPosition;
@@ -167,6 +169,7 @@ public:
 		playerMentality = _mentality;
 
 		name = _name;
+		number = _number;
 
 		state = (_role == PlayerRole::Goalkeeper || _role == PlayerRole::SweeperKeeper) ? PlayerState::GKIdle : PlayerState::Idle;
 		plannedState = state;
@@ -189,8 +192,39 @@ public:
 	void changeMentality(Mentality m) {} // Change the player mentality considering the flow of the game
 	void addTrait(PlayerTraits t) {} // Give the player a trait (maybe this eventually comes from the base player class though)
 	void modifyFitness(float f) {} // Modify the player's fitness by an amount (e.g. applying an injury or incremental fitness decline over the course of a match)
+	void resetPosition() { position = neutralPosition; }
 
-	void Step(float deltaT) {}
+	glm::vec2 getPosition() { return position; }
+	char* getName() { return name; }
+	int getNumber() { return number; }
+
+	template<typename T>
+	void myFunction(float deltaT, T&& lambda) {
+		lambda();
+	}
+
+	// A test step function that just jiggles the player randomly
+	void TestStep(float deltaT) {
+		float r1 = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
+		float r2 = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
+
+		r1 = (r1 - 0.5) * 2;
+		r2 = (r2 - 0.5) * 2;
+
+		glm::vec2 dir = glm::normalize(glm::vec2(r1, r2));
+
+		dir.x *= deltaT * 5;
+		dir.y *= deltaT * 5;
+
+		//std::cout << "moved in direction " << dir.x << "," << dir.y << std::endl;
+		SetPosition(position + dir);
+		//std::cout << "New position: " << position.x << "," << position.y << std::endl;
+	}
+
+	// Do this on every tick, should contain all the logic to simulate the player
+	void Step(float deltaT) {
+		TestStep(deltaT);
+	}
 private:
 	PlayerState state; // State of the player
 	PlayerState plannedState; // Planned next state of player (e.g. currently dribbling, planning to shoot)
@@ -213,10 +247,14 @@ private:
 	float fitness; // Fitness level on scale from 0.0 (dead) to 1.0 (perfectly fit)
 	CardState card; // The state of the card for the player
 
+
 	char* name; // Player name? Or link to existing player class
+	int number;
 	// Team team; // Team information (e.g. formation, other players, team mentality)
 	// TODO: Attributes (e.g. speed, height, finishing etc.)
 	//		Or link to existing player object with this information, and keep this class for simulation information
+
+	void SetPosition(glm::vec2 p) { position = p; }
 
 	// Stats (maybe these want to be public just to make modification easier, and to avoid having dozens of setters)
 	/*float distanceRun;
@@ -331,7 +369,7 @@ private:
 	float weight; // Weight of the ball (should only deviate from 1.0 for debugging probably)
 	glm::vec3 friction; // Friction the ball feels on the grass
 	glm::vec3 airResistance; // Air resistance the ball feels in the air
-	const float g = 9.81;
+	const float g = 9.81f;
 };
 
 // Enum for state of the simulator
@@ -340,6 +378,217 @@ enum SimulationState {
 	Running, // Simulation is running 
 	Paused, // Simulation is temporarily paused with current state saved
 	Stopped, // Simulation is stopped (likely unused and unecessary)
+};
+
+class PitchInfo {
+public:
+	int LeftEdge;
+	int RightEdge;
+	int TopEdge;
+	int BottomEdge;
+
+	ImVec2 TopLeft;
+	ImVec2 TopRight;
+	ImVec2 BottomLeft;
+	ImVec2 BottomRight;
+
+	ImVec2 Pitch;
+	ImVec2 PitchSize;
+
+	PitchInfo(ImVec2 topLeft, ImVec2 bottomRight, ImVec2 pitch, ImVec2 pitchSize) {
+		TopLeft = topLeft;
+		BottomRight = bottomRight;
+
+		LeftEdge = (int)topLeft.x;
+		RightEdge = (int)bottomRight.x;
+		TopEdge = (int)topLeft.y;
+		BottomEdge = (int)bottomRight.y;
+
+		TopRight = ImVec2(RightEdge, TopEdge);
+		BottomLeft = ImVec2(LeftEdge, BottomEdge);
+
+		Pitch = pitch;
+		PitchSize = pitchSize;
+	}
+};
+
+// Maybe separate class to render everything
+class Renderer {
+public:
+	// Render the background pitch textures
+	// TODO: Store pitch lines somehwere for local size on pitch, so they can be used to detect when e.g. ball / player is in penalty area 
+	void RenderPitch(ImDrawList* draw) {
+		Initialise(Pitch); // ???
+
+		if (pitchInfo.TopEdge != TopEdge || pitchInfo.BottomEdge != BottomEdge || pitchInfo.RightEdge != RightEdge || pitchInfo.LeftEdge != LeftEdge)
+			pitchInfo = PitchInfo(TopLeft, BottomRight, Pitch, PitchSize);
+		
+		draw->AddRectFilled(TopLeft, BottomRight, grassColour); // Grass
+		draw->AddRect(TopLeft, BottomRight, lineColour); // Outline
+		draw->AddLine(ImVec2(localHalfway, TopEdge), ImVec2(localHalfway, BottomEdge), lineColour); // Halfway Line
+		draw->AddCircle(Centre, (9.15 / 120) * PitchSize.x, lineColour); // Centre Circle
+		draw->AddCircleFilled(Centre, 3, lineColour); // Centre Dot
+
+		draw->AddRect(ImVec2(LeftEdge, Centre.y - (20.15 / 90) * PitchSize.y), ImVec2(LeftEdge + (16.5 / 120) * PitchSize.x, Centre.y + (20.15 / 90) * PitchSize.y), lineColour); // Left Penalty Area
+		draw->AddRect(ImVec2(RightEdge - 1, Centre.y - (20.15 / 90) * PitchSize.y), ImVec2(RightEdge - (16.5 / 120) * PitchSize.x, Centre.y + (20.15 / 90) * PitchSize.y), lineColour); // Right Penalty Area
+
+		draw->AddRect(ImVec2(LeftEdge, Centre.y - (9.16 / 90) * PitchSize.y), ImVec2(LeftEdge + (5.5 / 120) * PitchSize.x, Centre.y + (9.16 / 90) * PitchSize.y), lineColour); // Left 6yd Area
+		draw->AddRect(ImVec2(RightEdge - 1, Centre.y - (9.16 / 90) * PitchSize.y), ImVec2(RightEdge - (5.5 / 120) * PitchSize.x, Centre.y + (9.16 / 90) * PitchSize.y), lineColour); // Right 6yd Area
+
+		draw->AddRectFilled(ImVec2(LeftEdge, Centre.y - (3.66 / 90) * PitchSize.y), ImVec2(LeftEdge - (0.5 / 120) * PitchSize.x, Centre.y + (3.66 / 90) * PitchSize.y), lineColour); // Left Goal
+		draw->AddRectFilled(ImVec2(RightEdge - 1, Centre.y - (3.66 / 90) * PitchSize.y), ImVec2(RightEdge + (0.5 / 120) * PitchSize.x, Centre.y + (3.66 / 90) * PitchSize.y), lineColour); // Right Goal
+
+		draw->AddCircleFilled(ImVec2(LeftEdge + (11.0 / 120) * PitchSize.x, Centre.y), 3, lineColour); // Left Penalty Spot
+		draw->AddCircleFilled(ImVec2(RightEdge - (11.0 / 120) * PitchSize.x, Centre.y), 3, lineColour); // Right Penalty Spot
+
+		// Left D
+		draw->PathArcTo(ImVec2(LeftEdge + (11.0 / 120) * PitchSize.x, Centre.y), (9.15 / 120) * PitchSize.x, -0.94, 0.94);
+		draw->PathStroke(lineColour);
+
+		// Right D
+		draw->PathArcTo(ImVec2(RightEdge - (11.0 / 120) * PitchSize.x, Centre.y), (9.15 / 120) * PitchSize.x, 3.14159 - 0.94, 3.14159 + 0.94);
+		draw->PathStroke(lineColour);
+
+		// Top Left Corner
+		draw->PathArcTo(TopLeft, (1.0 / 120) * PitchSize.x, 0, 3.14159 / 2);
+		draw->PathStroke(lineColour);
+
+		// Top Right Corner
+		draw->PathArcTo(TopRight, (1.0 / 120) * PitchSize.x, 3.14159 / 2, 3.14159);
+		draw->PathStroke(lineColour);
+
+		// Bottom Left Corner
+		draw->PathArcTo(BottomLeft, (1.0 / 120) * PitchSize.x, 0, -3.14159 / 2);
+		draw->PathStroke(lineColour);
+
+		// Bottom Right Corner
+		draw->PathArcTo(BottomRight, (1.0 / 120) * PitchSize.x, 3.14159, 3 * 3.14159 / 2);
+		draw->PathStroke(lineColour);
+	}
+
+	// Render the player marker
+	void RenderPlayerMarker(PlayerInSimulation p, ImU32 colour) {
+		ImVec2 pos = ImVec2(p.getPosition().x, p.getPosition().y); // Get position part
+		if (drawOutline) draw->AddCircle(ImVec2(LeftEdge + (pos.x / Pitch.x) * PitchSize.x, TopEdge + (pos.y / Pitch.y) * PitchSize.y), markerSize + 1, IM_COL32(0, 0, 0, 255)); // Draw outline
+		draw->AddCircleFilled(ImVec2(LeftEdge + (pos.x / Pitch.x) * PitchSize.x, TopEdge + (pos.y / Pitch.y) * PitchSize.y), markerSize, colour); // Draw marker for player
+
+		// Draw player number on marker, centering on marker
+		float fontSize = 2 * markerSize;
+		auto TextSize = ImGui::CalcTextSize(std::to_string(p.getNumber()).c_str());
+		TextSize.x *= (fontSize / 20);
+		TextSize.y *= (fontSize / 20);
+		if (showNumbers) draw->AddText(ImGui::GetFont(), fontSize, ImVec2(LeftEdge + (pos.x / Pitch.x) * PitchSize.x - TextSize.x * 0.5f, TopEdge + (pos.y / Pitch.y) * PitchSize.y - TextSize.y * 0.5f), lineColour, std::to_string(p.getNumber()).c_str());
+	
+		RenderHoverText(p);
+	}
+
+	// Render the ball
+	void RenderBall(Ball b) {
+		ImVec2 pos = ImVec2(b.getPosition().x, b.getPosition().y);
+		if (drawOutline) draw->AddCircle(ImVec2(LeftEdge + (pos.x / Pitch.x) * PitchSize.x, TopEdge + (pos.y / Pitch.y) * PitchSize.y), markerSize + 1, IM_COL32(0, 0, 0, 255)); // Draw outline
+		draw->AddCircleFilled(ImVec2(LeftEdge + (pos.x / Pitch.x) * PitchSize.x, TopEdge + (pos.y / Pitch.y) * PitchSize.y), markerSize, IM_COL32(255, 255, 255, 255)); // Draw marker for player
+	}
+
+	void Initialise(ImVec2 pitch) {
+		ImVec2 WindowPos = ImGui::GetWindowPos();
+
+		ImVec2 WindowSize = ImGui::GetWindowSize();
+
+		// Conversions for pitch size to window size
+		ImVec2 PitchToWindow = ImVec2(WindowSize.x / Pitch.x, WindowSize.y / Pitch.y);
+
+		draw = ImGui::GetForegroundDrawList(); // Initialise draw list to be able to make draw calls
+
+		// Offset vector from edge of window to provide slight padding
+		// Also since (0,0) is in the top left where the window title bar is, not where the viewable portion is
+		ImVec2 Offset = ImVec2(WindowPos.x + 5, WindowPos.y + 30);
+
+		int xOffset = (int)Offset.x;
+		int yOffset = (int)Offset.y;
+
+		// Define edges of the renderable pitch area
+		TopEdge = (int)Offset.y;
+		BottomEdge = (int)Offset.y + WindowSize.y - 35;
+		LeftEdge = (int)Offset.x;
+		RightEdge = (int)Offset.x + WindowSize.x - 10;
+
+		// Define corners of the renderable pitch area
+		TopLeft = ImVec2(LeftEdge, TopEdge);
+		TopRight = ImVec2(RightEdge, TopEdge);
+		BottomLeft = ImVec2(LeftEdge, BottomEdge);
+		BottomRight = ImVec2(RightEdge, BottomEdge);
+
+		PitchSize = ImVec2(RightEdge - LeftEdge, BottomEdge - TopEdge); // Define the pitch size on the screen
+
+		localHalfway = (LeftEdge + RightEdge) / 2; // Define the local halfway point on the screen
+
+		Centre = ImVec2((LeftEdge + RightEdge) / 2, (TopEdge + BottomEdge) / 2); // Define the local centre of the pitch on the screen
+	}
+
+	void ChangeSettings(float _markerSize, bool _drawOutlines, bool _showNumbers) {
+		markerSize = _markerSize;
+		drawOutline = _drawOutlines;
+		showNumbers = _showNumbers;
+	}
+
+	void SetDrawOutlines(bool b) { drawOutline = b; }
+	void SetShowNumbers(bool b) { showNumbers = b; }
+	ImDrawList* GetDrawList() { return draw; }
+
+	/*Renderer(ImVec2 pitch = ImVec2(120, 90), float marker = 5.0f) : Pitch(pitch) {
+		markerSize = marker;
+	}*/
+
+	void SetDraw(ImDrawList* d) { draw = d; }
+
+	Renderer(glm::vec2 pitch = glm::vec2(120, 90), float marker = 5.0f) : Pitch(pitch.x, pitch.y) {
+		markerSize = marker;
+
+		ChangeSettings(marker, true, true);
+
+		//Initialise(ImVec2(pitch.x, pitch.y));
+	}
+private:
+	ImVec2 windowSize;
+	ImVec2 Pitch = ImVec2(120, 90); // Dimensions of pitch in metres for use in internal calculations
+
+	// Define edges of the renderable pitch area
+	int TopEdge;
+	int BottomEdge;
+	int LeftEdge;
+	int RightEdge;
+
+	// Define corners of the renderable pitch area
+	ImVec2 TopLeft;
+	ImVec2 TopRight;
+	ImVec2 BottomLeft;
+	ImVec2 BottomRight;
+
+	ImVec2 PitchSize; // Define the pitch size on the screen
+
+	ImDrawList* draw;
+
+	int localHalfway; // Define the local halfway point on the screen
+
+	ImVec2 Centre; // Define the local centre of the pitch on the screen
+
+	PitchInfo pitchInfo = PitchInfo(TopLeft, BottomRight, Pitch, PitchSize);
+
+	float markerSize;
+	ImU32 grassColour = IM_COL32(23, 141, 23, 255);
+	ImU32 lineColour = IM_COL32(255, 255, 255, 255);
+	bool drawOutline;
+	bool showNumbers;
+
+	// Render the hover text for a player that shows their name
+	void RenderHoverText(PlayerInSimulation p) {
+		if (ImGui::IsMouseHoveringRect(ImVec2(LeftEdge + (p.getPosition().x / Pitch.x) * PitchSize.x - markerSize, TopEdge + (p.getPosition().y / Pitch.y) * PitchSize.y - markerSize),
+			ImVec2(LeftEdge + (p.getPosition().x / Pitch.x) * PitchSize.x + markerSize, TopEdge + (p.getPosition().y / Pitch.y) * PitchSize.y + markerSize))) { // Check if mouse is in bounding box around player marker
+			auto TextSize = ImGui::CalcTextSize(p.getName());
+			draw->AddRectFilled(ImVec2(ImGui::GetMousePos().x, ImGui::GetMousePos().y - 20), ImVec2(ImGui::GetMousePos().x + TextSize.x, ImGui::GetMousePos().y - 20 + TextSize.y), IM_COL32(0, 0, 0, 100), 1.0f); // Draw transluscent background for text
+			draw->AddText(ImVec2(ImGui::GetMousePos().x, ImGui::GetMousePos().y - 20), lineColour, p.getName()); // Draw text above the cursor
+		}
+	}
 };
 
 class Simulator {
@@ -357,12 +606,20 @@ public:
 		matchTimeElapsed = NULL;
 		matchTimeMins = 0;
 		matchTimeSecs = 0;
+
+		SimulatorWindow = NULL; // THIS HAS TO BE SET FROM THE UI SIDE
+
+		SetupTeams();
 	}
 
 	// Render the simulation contents
 	// TODO
 	void Render() {
+		for (PlayerInSimulation p : team1) { renderer.RenderPlayerMarker(p, IM_COL32(255, 0, 0, 255)); }
 
+		for (PlayerInSimulation p : team2) { renderer.RenderPlayerMarker(p, IM_COL32(0, 0, 255, 255)); }
+
+		renderer.RenderBall(ball);
 	}
 
 	// Public setter for the TPS 
@@ -413,10 +670,22 @@ public:
 
 	SimulationState getState() { return state; } // Public getter for simulator state as a SimulationState enum
 
+	Renderer getRenderer() { return renderer; }
+	void setRenderer(Renderer r) { renderer = r; }
+
+	void SetWindow(ImDrawList* draw) { SimulatorWindow = draw; renderer.SetDraw(SimulatorWindow); }
+
 	// TODO
 	// Initialise the simulation (might be the same as Begin)
 	void Initialise() {
 
+	}
+
+	void SetupTeams() {
+		team1.clear();
+		team2.clear();
+		team1.push_back(PlayerInSimulation(glm::vec2(40, 45), 8, PlayerRole::CentreMid, PlayerWidth::FreeRoam, Mentality::Support, "Test 1"));
+		team2.push_back(PlayerInSimulation(glm::vec2(80, 45), 8, PlayerRole::CentreMid, PlayerWidth::FreeRoam, Mentality::Support, "Test 2"));
 	}
 
 	// TODO
@@ -428,9 +697,6 @@ public:
 			startTime = ImGui::GetTime(); // Initialise start time to current time
 			lastTickTime = ImGui::GetTime(); // Set last tick time to current time
 			calculateMatchTime();
-
-			team1.push_back(PlayerInSimulation(glm::vec2(45, 45), PlayerRole::CentreMid, PlayerWidth::FreeRoam, Mentality::Support, "Test 1"));
-			team2.push_back(PlayerInSimulation(glm::vec2(135, 45), PlayerRole::CentreMid, PlayerWidth::FreeRoam, Mentality::Support, "Test 2"));
 
 			ball.Kick(10, glm::vec3(1, 0, 0), 0);
 		}
@@ -467,9 +733,13 @@ public:
 
 		// TEST MOVEMENT
 		// Move the ball in a circle, making sure movement is dependant on actual (match) time elapsed rather than just pure tick number
-		TestMovement1();
+		//TestMovement1();
 		//TestMovement2(matchTimeElapsedInLastTick);
-		//TestMovement3(matchTimeElapsedInLastTick);
+		TestMovement3(matchTimeElapsedInLastTick);
+
+		for (PlayerInSimulation &p : team1) { p.Step(matchTimeElapsedInLastTick); }
+
+		for (PlayerInSimulation &p : team2) { p.Step(matchTimeElapsedInLastTick); }
 
 		// TODO
 		// DO CALCULATIONS PER TICK
@@ -518,8 +788,9 @@ public:
 		matchTimeMins = 0;
 		matchTimeSecs = 0;
 
-		//ball.setPosition(glm::vec3(PitchDim.x / 2, PitchDim.y / 2, 0));
 		ball.Reset();
+		for (PlayerInSimulation &p : team1) p.resetPosition();
+		for (PlayerInSimulation &p : team2) p.resetPosition();
 	}
 
 private:
@@ -554,4 +825,8 @@ private:
 	Ball ball; // Ball data
 
 	const glm::vec2 PitchDim = glm::vec2(120, 90);
+
+	Renderer renderer = Renderer(PitchDim);
+
+	ImDrawList* SimulatorWindow;
 };
