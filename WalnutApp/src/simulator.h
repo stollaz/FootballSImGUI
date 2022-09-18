@@ -90,6 +90,7 @@ enum PlayerState {
 	Idle, // Idle, not moving (e.g. waiting in position)
 	Positioning, // Moving into / remaining in default position
 	MovingToBall, // Moving directly to the ball
+	MovingToPosition, // Generic moving to state where player moves to a given position
 	// Defensive States
 	Clearing, // In the process of clearing the ball in any direction 
 	MovingToBlock, // Moving into a position to block the ball, between ball and goal
@@ -155,11 +156,93 @@ private:
 	//
 };
 
+// Class to interact with the ball
+class Ball {
+public:
+	// Apply a kick to the ball with a given strength in a given direction
+	void Kick(float strength, glm::vec3 direction, float _spin = 0.0f) {
+		// TODO
+		// Start using physics equations here, so strenght is force rather than direct velocity? But maybe do apply some instantaneous velocity
+		// F = ma, s = ut + 0.5at^2
+		//velocity = strength; // Clamp this? Or at least have some max value? Or non-linear relationship?
+		movementDirection = glm::normalize(direction + movementDirection); //Blend these with previous values too?
+		acceleration = strength * movementDirection;
+		velocity = (strength / 2) * movementDirection;
+	}
+
+	// Nudge the ball by a given vector (useful for debugging)
+	void Nudge(glm::vec3 d) {
+		position += d;
+	}
+
+	// Maybe this is useful? https://physics.ucf.edu/~roldan/classes/phy2048-ch4_sp12.pdf
+	// Perform a step of the ball's movement, e.g. to simulate gravity or to continue a pre-existing movement momentum
+	// Takes in a delta T, how much simulation time has elapsed since last step
+	// This might be useful for friction https://gamedev.stackexchange.com/questions/114983/how-to-apply-friction-vector-to-acceleration-in-top-down-2d-game
+	void Step(float deltaT) {
+		// TODO
+		// Ball should fall due to gravity on each tick
+		// As well as continue along its current direction of movement with its current acceleration and velocity, losing some extra velocity due to friction and air resistance, and moving in some extra direction due to spin
+		// Ds = uDt + 0.5aDt^2
+		// Force = Force Applied - Frictional Force
+		glm::vec3 s = position + (velocity * deltaT + (0.5f * acceleration) * deltaT * deltaT);
+		position = s;
+		glm::vec3 v = velocity + acceleration * deltaT;
+		velocity = v;
+		acceleration = acceleration - (airResistance * (velocity)) - (friction * (velocity)); // This is wrong but less wrong
+		//if (glm::length(acceleration) < 0.3f) acceleration = glm::vec3(0, 0, 0);
+		if (glm::length(velocity) < 0.5f) velocity = glm::vec3(0, 0, 0);
+
+		// Somehow, when friction counteracts velocity / acceleration perfectly (when ball stops / changes direction), ball needs to stay stopped
+	}
+
+	void Reset() {
+		position = defaultPosition;
+		velocity = glm::vec3(0, 0, 0);
+		acceleration = glm::vec3(0, 0, 0);
+		movementDirection = glm::vec3(0, 0, 0);
+		spin = 0.0f;
+	}
+
+	glm::vec3 getPosition() { return position; } // Retrieve the ball's position on the pitch
+	void setPosition(glm::vec3 p) { position = p; } // Set the ball's position (should only ever be used when resetting play, and should not be done directly from a player)
+
+	glm::vec3 getVelocity() { return velocity; } // Retrieve the ball's velocity - maybe make this noisy so it is hard to guess exact velocity? Or deal with this on player side?
+	glm::vec3 getMovementDirection() { return movementDirection; } // Retrieve ball's movement direction - again maybe make this noisy? Include crude uncertaintly, e.g. direction is more uncertain at high speeds, vice versa
+	glm::vec3 getAcceleration() { return acceleration; }
+	glm::vec3 getFriction() { return friction; }
+	glm::vec3 getAirResistance() { return airResistance; }
+
+	Ball(glm::vec3 p, float w = 1.0f, float f = 0.0f, float a = 0.0f) {
+		defaultPosition = p;
+
+		Reset();
+
+		weight = w;
+		friction = glm::vec3(f, f, 0);
+		airResistance = glm::vec3(0, 0, a);
+	}
+private:
+	glm::vec3 defaultPosition; // Default position of the ball
+
+	glm::vec3 position; // Current position of the ball (x,y,z), z = height
+	glm::vec3 velocity; // Current velocity of the ball
+	glm::vec3 acceleration; // Current acceleration of the ball - maybe split into horizonal and vertical? or even as a vec3 for each direction?
+	glm::vec3 movementDirection; // Direction of movement of the ball (unit vector)
+	float spin = 0.f; // Spin of the ball - -1 is max anti-clockwise (left) spin, 1 is max clockwise (right) spin
+
+	float weight; // Weight of the ball (should only deviate from 1.0 for debugging probably)
+	glm::vec3 friction; // Friction the ball feels on the grass
+	glm::vec3 airResistance; // Air resistance the ball feels in the air
+	const float g = 9.81f;
+};
+
+
 // Class to store information about a player in a simulation
 // TODO: Figure out if this itself stores player attribute informaiton, or just another player class and then uses that information to simulate activity
 class PlayerInSimulation {
 public:
-	PlayerInSimulation(glm::vec2 _initialPosition, int _number, PlayerRole _role, PlayerWidth _width, Mentality _mentality, char* _name, std::vector<PlayerTraits> _traits = {}) {
+	PlayerInSimulation(glm::vec2 _initialPosition, int _number, char* _name, PlayerRole _role, PlayerWidth _width, Mentality _mentality, std::vector<PlayerTraits> _traits = {}) {
 		position = _initialPosition;
 		neutralPosition = _initialPosition;
 		targetPosition = _initialPosition;
@@ -179,14 +262,25 @@ public:
 		card = CardState::None;
 
 		traits = _traits;
+
+		q.push(state);
 	}
+
+	void addBall(Ball *b) { ball = b; }
 
 	// Set the player state
 	void setState(PlayerState s) {
 		state = s;
 	}
 
-	void addState(PlayerState s) {} // Add a state to the queue // TODO
+	// Add a state to the queue
+	void addState(PlayerState s) {
+		q.push(s);
+	} 
+
+	void popState() {
+		q.pop();
+	}
 
 	void setTargetPos(glm::vec2 p) {} // Set the target position to be acted on with the state
 	void changeMentality(Mentality m) {} // Change the player mentality considering the flow of the game
@@ -197,6 +291,13 @@ public:
 	glm::vec2 getPosition() { return position; }
 	char* getName() { return name; }
 	int getNumber() { return number; }
+	PlayerState getState() { return state; }
+
+	bool checkNearBall(Ball b, float epsilon = 0.25f) {
+		glm::vec2 ballPos = glm::vec2(b.getPosition().x, b.getPosition().y);
+		float dist = glm::length(ballPos - position);
+		return dist <= epsilon;
+	}
 
 	template<typename T>
 	void myFunction(float deltaT, T&& lambda) {
@@ -221,9 +322,56 @@ public:
 		//std::cout << "New position: " << position.x << "," << position.y << std::endl;
 	}
 
+	// Basic step function to make players move to random locations repetaedly
+	void RandomMovement(float deltaT) {
+		// If the player is idle
+		if (state == PlayerState::Idle || state == PlayerState::Null) {
+			// If the queue isn't empty, get the next state from the queue
+			if (q.front() != PlayerState::Idle) {
+				state = q.front();
+				q.pop();
+			}
+			// If the queue is empty, set to moving to position
+			else {
+				q.push(PlayerState::MovingToPosition);
+				state = PlayerState::MovingToPosition;
+				targetPosition = glm::vec2((int)(rand() % 120), (int)(rand() % 90));
+				std::cout << " [" << name << "] Target: " << targetPosition.x << ", " << targetPosition.y << std::endl;
+			}
+
+		}
+
+		// If the player is moving to a position, slowly move in that direction
+		if (state == PlayerState::MovingToPosition) {
+			glm::vec2 direction = glm::normalize(targetPosition - position);
+			direction.x *= deltaT * 5;
+			direction.y *= deltaT * 5;
+
+			position += direction;
+
+			// Stop moving when within range, to avoid stuttering
+			if (glm::length(position - targetPosition) < 0.1f) {
+				targetPosition = position;
+				state = PlayerState::Idle; // Reset state
+				q.push(PlayerState::MovingToPosition); // Add new movement state
+			}
+		}
+
+		// Crude check for if the ball is nearby to kick the ball
+		// Physics still broken AF
+		if (checkNearBall(*ball, 1.0f) && (ImGui::GetTime() - lastKickedBall) > 1) {
+			std::cout << "[" << name << "] tried to kick the ball" << std::endl;
+			glm::vec3 pos3d = glm::vec3(position.x, position.y, 0);
+			glm::vec3 dir = ball->getPosition() - pos3d;
+			ball->Kick(10, glm::normalize(dir), 0);
+			lastKickedBall = ImGui::GetTime();
+		}
+	}
+
 	// Do this on every tick, should contain all the logic to simulate the player
 	void Step(float deltaT) {
-		TestStep(deltaT);
+		//TestStep(deltaT);
+		RandomMovement(deltaT);
 	}
 private:
 	PlayerState state; // State of the player
@@ -231,7 +379,7 @@ private:
 	// states could also be done in a form of queue, so multiple could be submitted at once (e.g. moving to a location to pass and then overlap, or move then shoot etc.)
 	// Maybe also a tuple of possible states and locations? (e.g. dribble to (x0,y0) and then pass to (x1,y1)
 
-	//std::queue<PlayerState> q;
+	std::queue<PlayerState> q;
 
 	PlayerRole role;
 	PlayerWidth width;
@@ -246,7 +394,9 @@ private:
 	bool hasBall; // Whether the player is in control of the ball or not
 	float fitness; // Fitness level on scale from 0.0 (dead) to 1.0 (perfectly fit)
 	CardState card; // The state of the card for the player
+	Ball *ball = nullptr;
 
+	int lastKickedBall = 0;
 
 	char* name; // Player name? Or link to existing player class
 	int number;
@@ -293,83 +443,6 @@ private:
 	Mentality teamMentality;
 	char* teamName;
 	ImVec4 colour;
-};
-
-// Class to interact with the ball
-class Ball {
-public:
-	// Apply a kick to the ball with a given strength in a given direction
-	void Kick(float strength, glm::vec3 direction, float _spin) {
-		// TODO
-		// Start using physics equations here, so strenght is force rather than direct velocity? But maybe do apply some instantaneous velocity
-		// F = ma, s = ut + 0.5at^2
-		//velocity = strength; // Clamp this? Or at least have some max value? Or non-linear relationship?
-		movementDirection = glm::normalize(direction + movementDirection); //Blend these with previous values too?
-		acceleration = strength * movementDirection;
-		velocity = (strength / 2) * movementDirection;
-	}
-
-	// Nudge the ball by a given vector (useful for debugging)
-	void Nudge(glm::vec3 d) {
-		position += d;
-	}
-
-	// Maybe this is useful? https://physics.ucf.edu/~roldan/classes/phy2048-ch4_sp12.pdf
-	// Perform a step of the ball's movement, e.g. to simulate gravity or to continue a pre-existing movement momentum
-	// Takes in a delta T, how much simulation time has elapsed since last step
-	// This might be useful for friction https://gamedev.stackexchange.com/questions/114983/how-to-apply-friction-vector-to-acceleration-in-top-down-2d-game
-	void Step(float deltaT) {
-		// TODO
-		// Ball should fall due to gravity on each tick
-		// As well as continue along its current direction of movement with its current acceleration and velocity, losing some extra velocity due to friction and air resistance, and moving in some extra direction due to spin
-		// Ds = uDt + 0.5aDt^2
-		// Force = Force Applied - Frictional Force
-		glm::vec3 s = position + (velocity * deltaT + (0.5f * acceleration) * deltaT * deltaT);
-		position = s;
-		glm::vec3 v = velocity + acceleration * deltaT;
-		velocity = v;
-		acceleration = acceleration - (airResistance * glm::normalize(velocity)) - (friction * glm::normalize(velocity)); // This is wrong but less wrong
-	}
-
-	void Reset() {
-		position = defaultPosition;
-		velocity = glm::vec3(0, 0, 0);
-		acceleration = glm::vec3(0, 0, 0);
-		movementDirection = glm::vec3(0, 0, 0);
-		spin = 0.0f;
-	}
-
-	glm::vec3 getPosition() { return position; } // Retrieve the ball's position on the pitch
-	void setPosition(glm::vec3 p) { position = p; } // Set the ball's position (should only ever be used when resetting play, and should not be done directly from a player)
-
-	glm::vec3 getVelocity() { return velocity; } // Retrieve the ball's velocity - maybe make this noisy so it is hard to guess exact velocity? Or deal with this on player side?
-	glm::vec3 getMovementDirection() { return movementDirection; } // Retrieve ball's movement direction - again maybe make this noisy? Include crude uncertaintly, e.g. direction is more uncertain at high speeds, vice versa
-	glm::vec3 getAcceleration() { return acceleration; }
-	glm::vec3 getFriction() { return friction; }
-	glm::vec3 getAirResistance() { return airResistance; }
-
-	Ball(glm::vec3 p, float w = 1.0f, float f = 0.0f, float a = 0.0f) {
-		defaultPosition = p;
-
-		Reset();
-
-		weight = w;
-		friction = glm::vec3(f, f, 0);
-		airResistance = glm::vec3(0, 0, a);
-	}
-private:
-	glm::vec3 defaultPosition; // Default position of the ball
-
-	glm::vec3 position; // Current position of the ball (x,y,z), z = height
-	glm::vec3 velocity; // Current velocity of the ball
-	glm::vec3 acceleration; // Current acceleration of the ball - maybe split into horizonal and vertical? or even as a vec3 for each direction?
-	glm::vec3 movementDirection; // Direction of movement of the ball (unit vector)
-	float spin = 0.f; // Spin of the ball - -1 is max anti-clockwise (left) spin, 1 is max clockwise (right) spin
-
-	float weight; // Weight of the ball (should only deviate from 1.0 for debugging probably)
-	glm::vec3 friction; // Friction the ball feels on the grass
-	glm::vec3 airResistance; // Air resistance the ball feels in the air
-	const float g = 9.81f;
 };
 
 // Enum for state of the simulator
@@ -617,7 +690,7 @@ public:
 	void Render() {
 		for (PlayerInSimulation p : team1) { renderer.RenderPlayerMarker(p, IM_COL32(255, 0, 0, 255)); }
 
-		for (PlayerInSimulation p : team2) { renderer.RenderPlayerMarker(p, IM_COL32(0, 0, 255, 255)); }
+		for (PlayerInSimulation p : team2) { renderer.RenderPlayerMarker(p, IM_COL32(3, 202, 252, 255)); }
 
 		renderer.RenderBall(ball);
 	}
@@ -684,8 +757,43 @@ public:
 	void SetupTeams() {
 		team1.clear();
 		team2.clear();
-		team1.push_back(PlayerInSimulation(glm::vec2(40, 45), 8, PlayerRole::CentreMid, PlayerWidth::FreeRoam, Mentality::Support, "Test 1"));
-		team2.push_back(PlayerInSimulation(glm::vec2(80, 45), 8, PlayerRole::CentreMid, PlayerWidth::FreeRoam, Mentality::Support, "Test 2"));
+		//team1.push_back(PlayerInSimulation(glm::vec2(40, 45), 8, "Test 1", PlayerRole::CentreMid, PlayerWidth::FreeRoam, Mentality::Support));
+		//team2.push_back(PlayerInSimulation(glm::vec2(80, 45), 8, "Test 2", PlayerRole::CentreMid, PlayerWidth::FreeRoam, Mentality::Support));
+
+		//team1.push_back(PlayerInSimulation(glm::vec2(X,Y), NUM, NAME, PlayerRole::ROLE, PlayerWidth::WIDTH, Mentality::MENTALITY);
+
+		team1.push_back(PlayerInSimulation(glm::vec2(7, 45), 1, "David de Gea", PlayerRole::Goalkeeper, PlayerWidth::Central, Mentality::Defence));
+		team1.push_back(PlayerInSimulation(glm::vec2(20, 10), 12, "Tyrell Malacia", PlayerRole::FullBack, PlayerWidth::WideLeft, Mentality::Support));
+		team1.push_back(PlayerInSimulation(glm::vec2(20, 35), 6, "Lisandro Martinez", PlayerRole::CentreBack, PlayerWidth::CentreLeft, Mentality::Defence));
+		team1.push_back(PlayerInSimulation(glm::vec2(20, 55), 19, "Raphael Varane", PlayerRole::CentreBack, PlayerWidth::CentreRight, Mentality::Defence));
+		team1.push_back(PlayerInSimulation(glm::vec2(20, 80), 20, "Diogo Dalot", PlayerRole::FullBack, PlayerWidth::WideRight, Mentality::Support));
+		
+		team1.push_back(PlayerInSimulation(glm::vec2(37, 35), 14, "Christian Eriksen", PlayerRole::CentreMid, PlayerWidth::CentreLeft, Mentality::Support));
+		team1.push_back(PlayerInSimulation(glm::vec2(32, 45), 18, "Casemiro", PlayerRole::DefensiveMid, PlayerWidth::Central, Mentality::Defence));
+		team1.push_back(PlayerInSimulation(glm::vec2(37, 55), 8, "Bruno Fernandes", PlayerRole::AdvancedPlaymaker, PlayerWidth::CentreRight, Mentality::Support));
+		
+		team1.push_back(PlayerInSimulation(glm::vec2(47, 10), 25, "Jadon Sancho", PlayerRole::InsideForward, PlayerWidth::InsideLeft, Mentality::Attack));
+		team1.push_back(PlayerInSimulation(glm::vec2(50, 45), 7, "Cristiano Ronaldo", PlayerRole::Striker, PlayerWidth::Central, Mentality::Attack));
+		team1.push_back(PlayerInSimulation(glm::vec2(47, 80), 21, "Antony", PlayerRole::InsideForward, PlayerWidth::InsideRight, Mentality::Attack));
+
+		//----
+
+		team2.push_back(PlayerInSimulation(glm::vec2(120 - 7, 45), 1, "Ederson", PlayerRole::Goalkeeper, PlayerWidth::Central, Mentality::Defence));
+		team2.push_back(PlayerInSimulation(glm::vec2(120 - 20, 10), 7, "Joao Cancelo", PlayerRole::FullBack, PlayerWidth::WideLeft, Mentality::Support));
+		team2.push_back(PlayerInSimulation(glm::vec2(120 - 20, 35), 14, "Aymeric Laporte", PlayerRole::CentreBack, PlayerWidth::CentreLeft, Mentality::Defence));
+		team2.push_back(PlayerInSimulation(glm::vec2(120 - 20, 55), 5, "Ruben Dias", PlayerRole::CentreBack, PlayerWidth::CentreRight, Mentality::Defence));
+		team2.push_back(PlayerInSimulation(glm::vec2(120 - 20, 80), 2, "Kyle Walker", PlayerRole::FullBack, PlayerWidth::WideRight, Mentality::Support));
+		
+		team2.push_back(PlayerInSimulation(glm::vec2(120 - 37, 35), 20, "Bernardo Silva", PlayerRole::BoxToBox, PlayerWidth::CentreLeft, Mentality::Support));
+		team2.push_back(PlayerInSimulation(glm::vec2(120 - 32, 45), 16, "Rodri", PlayerRole::DefensiveMid, PlayerWidth::Central, Mentality::Defence));
+		team2.push_back(PlayerInSimulation(glm::vec2(120 - 37, 55), 17, "Kevin De Bruyne", PlayerRole::Playmaker, PlayerWidth::CentreRight, Mentality::Support));
+		
+		team2.push_back(PlayerInSimulation(glm::vec2(120 - 47, 10), 10, "Jack Grealish", PlayerRole::InsideForward, PlayerWidth::InsideLeft, Mentality::Attack));
+		team2.push_back(PlayerInSimulation(glm::vec2(120 - 50, 45), 9, "Erling Haaland", PlayerRole::Striker, PlayerWidth::Central, Mentality::Attack));
+		team2.push_back(PlayerInSimulation(glm::vec2(120 - 47, 80), 26, "Riyad Mahrez", PlayerRole::InsideForward, PlayerWidth::InsideRight, Mentality::Attack));
+	
+		for (auto &p : team1) p.addBall(&ball);
+		for (auto &p : team2) p.addBall(&ball);
 	}
 
 	// TODO
@@ -698,7 +806,7 @@ public:
 			lastTickTime = ImGui::GetTime(); // Set last tick time to current time
 			calculateMatchTime();
 
-			ball.Kick(10, glm::vec3(1, 0, 0), 0);
+			//ball.Kick(10, glm::vec3(1, 0, 0), 0);
 		}
 	}
 
@@ -731,6 +839,9 @@ public:
 		lastTickTime = ImGui::GetTime(); // Set last tick time to current time
 		calculateMatchTime(); // Recalculate match time
 
+		for (auto& p : team1) p.addBall(&ball);
+		for (auto& p : team2) p.addBall(&ball);
+
 		// TEST MOVEMENT
 		// Move the ball in a circle, making sure movement is dependant on actual (match) time elapsed rather than just pure tick number
 		//TestMovement1();
@@ -740,6 +851,8 @@ public:
 		for (PlayerInSimulation &p : team1) { p.Step(matchTimeElapsedInLastTick); }
 
 		for (PlayerInSimulation &p : team2) { p.Step(matchTimeElapsedInLastTick); }
+
+		//ball.Step(matchTimeElapsedInLastTick);
 
 		// TODO
 		// DO CALCULATIONS PER TICK

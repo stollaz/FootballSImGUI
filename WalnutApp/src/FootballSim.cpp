@@ -411,6 +411,22 @@ public:
 		//ImGui::SetWindowSize(ImVec2(1920, 1080));
 	}
 
+	/*
+	GKLineHeight = 7; // ?? to ??
+	DefensiveLineHeight = 20; // ?? to ??
+	MidfieldLineHeight = 37; // ?? to ??
+	AttackingLineHeight = 50; // ?? to ??
+
+	WingerWidth = 35; // 0 to 45
+	FBWidth = 35; // 0 to 45
+	CMWidth = 10; // 0 to 45
+	CBWidth = 10; // 0 to 45
+
+	FullBackHeightOffset = 0;
+	DMHeightOffset = -5;
+	WingerHeightOffset = -3;
+	*/
+
 	std::vector<SimplePlayer> CreateTeam1() {
 		std::vector<SimplePlayer> team1Players;
 
@@ -437,7 +453,7 @@ public:
 
 		team2Players.push_back(SimplePlayer(ImVec2(Pitch.x - GKLineHeight, Pitch.y / 2), 31, "Ederson")); // GK
 
-		team2Players.push_back(SimplePlayer(ImVec2(Pitch.x - (DefensiveLineHeight + FullBackHeightOffset), (Pitch.y / 2) - FBWidth), 27, "Joao Cancelo")); // LB
+		team2Players.push_back(SimplePlayer(ImVec2(Pitch.x - (DefensiveLineHeight + FullBackHeightOffset), (Pitch.y / 2) - FBWidth), 7, "Joao Cancelo")); // LB
 		team2Players.push_back(SimplePlayer(ImVec2(Pitch.x - DefensiveLineHeight, (Pitch.y / 2) - CBWidth), 14, "Aymeric Laporte")); // LCB
 		team2Players.push_back(SimplePlayer(ImVec2(Pitch.x - DefensiveLineHeight, (Pitch.y / 2) + CBWidth), 5, "Ruben Dias")); // RCB
 		team2Players.push_back(SimplePlayer(ImVec2(Pitch.x - (DefensiveLineHeight + FullBackHeightOffset), (Pitch.y / 2) + FBWidth), 2, "Kyle Walker")); // RB
