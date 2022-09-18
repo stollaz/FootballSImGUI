@@ -698,7 +698,7 @@ public:
 		r.SetShowNumbers(true);
 
 		simulator.setRenderer(r);
-		if (simulator.getState() != SimulationState::Off) simulator.Render();
+		/*if (simulator.getState() != SimulationState::Off)*/ simulator.Render();
 	}
 
 	// Show the settings
