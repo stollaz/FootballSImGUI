@@ -131,6 +131,7 @@ enum PlayerState {
 	GKIdle, // Goalkeeping idle, neutral positioning
 	Sweeping, // Goalkeeper sweeping to collect a loose ball
 	GKAlert, // Goalkeeper alert to danger, moving between ball and goal
+	Collecting, // Moving to collect and pick up the ball
 	Saving, // In the process of making a save
 	Kicking, // In the process of making a goal kick / free kick
 	GKShortPass, // In the process of making a short pass to defender
@@ -220,6 +221,8 @@ public:
 		if (glm::abs(velocity.y) < 0.25f) { velocity.y = 0; acceleration.y = 0; }
 		if (glm::abs(velocity.z) < 0.25f && position.z <= 0) { velocity.z = 0; acceleration.z = 0; } // Vertical stopping only occurs on the ground
 		
+		if (velocity == glm::vec3(0, 0, 0)) Stop();
+
 		// Dampening term for bouncing, reversing velocity directiona and reducing velocity magnitude slowly over time (constant to be tweaked)
 		if (position.z <= 0 && velocity.z < 0) { Bounce(); }
 		//if (velocity.z < 0) { velocity.z = -velocity.z * 0.5f; }
@@ -231,6 +234,10 @@ public:
 
 	void Reset() {
 		position = defaultPosition;
+		Stop();
+	}
+
+	void Stop() {
 		velocity = glm::vec3(0, 0, 0);
 		acceleration = glm::vec3(0, 0, 0);
 		movementDirection = glm::vec3(0, 0, 0);
@@ -713,6 +720,8 @@ public:
 		matchTimeElapsed = NULL;
 		matchTimeMins = 0;
 		matchTimeSecs = 0;
+		score1 = 0;
+		score2 = 0;
 
 		SimulatorWindow = NULL; // THIS HAS TO BE SET FROM THE UI SIDE
 
@@ -755,6 +764,8 @@ public:
 
 	int getMatchTimeMins() { return matchTimeMins; } // Public getter for match time in minutes
 	int getMatchTimeSecs() { return matchTimeSecs; } // Public getter for match time in seconds
+	int getTeam1Score() { return score1; } // Public getters for team scores
+	int getTeam2Score() { return score2; }
 
 	// Public function to get a string explaining the state of the simulator
 	char* printState() {
@@ -781,6 +792,10 @@ public:
 	void setRenderer(Renderer r) { renderer = r; }
 
 	void SetWindow(ImDrawList* draw) { SimulatorWindow = draw; renderer.SetDraw(SimulatorWindow); }
+
+	void ChangeRenderSettings(float markerSize, bool drawOutline, bool showNumbers) {
+		renderer.ChangeSettings(markerSize, drawOutline, showNumbers);
+	}
 
 	// TODO
 	// Initialise the simulation (might be the same as Begin)
@@ -841,7 +856,7 @@ public:
 			lastTickTime = ImGui::GetTime(); // Set last tick time to current time
 			calculateMatchTime();
 			//ball.Kick(15, glm::vec3(1, 1, 0), 0);
-			ball.Kick(15, glm::vec3(-1, 0, 1), 0);
+			//ball.Kick(20, glm::vec3(-1, 0, 1), 0);
 		}
 	}
 
@@ -863,6 +878,18 @@ public:
 	void TestMovement3(float matchTimeElapsedInLastTick) {
 		ball.Step(matchTimeElapsedInLastTick);
 	}
+
+	void Team1Scored() {
+		score1++;
+		ball.Reset();
+	}
+
+	void Team2Scored() {
+		score2++;
+		ball.Reset();
+	}
+
+	void KickBall(float strength, glm::vec3 dir, float spin = 0.0f) { ball.Kick(strength, dir, spin); }
 
 	// TODO
 	// Step through the simulation - to be run on each tick
@@ -894,6 +921,16 @@ public:
 		// e.g. move players, move ball, etc.
 		// How does this interact with the pitch rendering?
 		//		Does it return data to then be rendered? Or render it directly?
+
+		// Check for goals
+		if (ball.getPosition().x >= 120 && (ball.getPosition().y > 45 - 3.66 && ball.getPosition().y < 45 + 3.66)) { Team1Scored(); }
+
+		if (ball.getPosition().x <= 0 && (ball.getPosition().y > 45 - 3.66 && ball.getPosition().y < 45 + 3.66)) { Team2Scored(); }
+
+		if (ball.getPosition().x < 0) { ball.setPosition(glm::vec3(0, ball.getPosition().y, ball.getPosition().z)); ball.Stop(); }
+		if (ball.getPosition().x > 120) { ball.setPosition(glm::vec3(120, ball.getPosition().y, ball.getPosition().z)); ball.Stop(); }
+		if (ball.getPosition().y < 0) { ball.setPosition(glm::vec3(ball.getPosition().x, 0, ball.getPosition().z)); ball.Stop(); }
+		if (ball.getPosition().y > 90) { ball.setPosition(glm::vec3(ball.getPosition().x, 90, ball.getPosition().z)); ball.Stop(); }
 	}
 
 	// TODO
@@ -935,6 +972,8 @@ public:
 		matchTimeElapsed = 0;
 		matchTimeMins = 0;
 		matchTimeSecs = 0;
+		score1 = 0;
+		score2 = 0;
 
 		ball.Reset();
 		for (PlayerInSimulation &p : team1) p.resetPosition();
@@ -955,6 +994,9 @@ private:
 
 	int matchTimeMins; // Minute of current match for scoreboard 
 	int matchTimeSecs; // Second *
+
+	int score1 = 0;
+	int score2 = 0;
 
 	void setTickTime() { tickTime = 1000.0f / (float)TPS; } // Private method to set tick time
 

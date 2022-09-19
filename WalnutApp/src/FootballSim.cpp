@@ -756,15 +756,29 @@ public:
 		ImGui::Text("%.2f s have elapsed in simulation.", simulator.getTimeElapsed()); // This doesn't work as it doesnt account for time paused or stopped
 		//ImGui::Text("Match Time: %02d:%02d", (int)floor(simulator.getTimeElapsed())/60, (int)floor(simulator.getTimeElapsed()) % 60); // This doesn't work as it doesnt account for time paused or stopped
 		ImGui::Text("Match Time: %02d:%02d", simulator.getMatchTimeMins(), simulator.getMatchTimeSecs());
+		ImGui::Text("Red Team %d - %d Blue Team", simulator.getTeam1Score(), simulator.getTeam2Score());
 		ImGui::NewLine();
+
+		static float angle;
+		ImGui::SliderAngle("Shot Angle (From Vertical)", &angle, 0, 360);
+		static float heightAngle;
+		ImGui::SliderAngle("Shot Angle (Height)", &heightAngle, 0, 90);
+		glm::vec3 dir = (glm::vec3(sin(angle), -cos(angle), heightAngle/(3.14159f/2.0f)));
+		static float power;
+		ImGui::SliderFloat("Shot Power", &power, 0, 20);
+		ImGui::Text("Direction: (%f,%f,%f)", dir.x, dir.y, dir.z);
+		if (ImGui::Button("Kick")) simulator.KickBall(power, dir, 0);
 
 		ImGui::Separator();
 		// -----------
 
-		ImGui::SliderFloat("Marker Size", &MarkerSize, 5, 15);
+		// This stuff doesn't work
+		/*ImGui::SliderFloat("Marker Size", &MarkerSize, 5, 15);
 
-		ImGui::Checkbox("Show Numbers", &showNumbers);
 		ImGui::Checkbox("Draw Outline", &drawOutline);
+		ImGui::Checkbox("Show Numbers", &showNumbers);
+
+		simulator.ChangeRenderSettings(MarkerSize, drawOutline, showNumbers);
 
 		if (ImGui::Button("Reset")) {
 			GKLineHeight = 7; // ?? to ??
@@ -780,10 +794,10 @@ public:
 			FullBackHeightOffset = 0;
 			DMHeightOffset = -5;
 			WingerHeightOffset = -3;
-		}
+		}*/
 
-		ImGui::NewLine();
-		ImGui::Text("%.1f FPS", ImGui::GetIO().Framerate);
+		//ImGui::NewLine();
+		ImGui::Text("%.1f FPS (%.1f ms)", ImGui::GetIO().Framerate, ImGui::GetIO().DeltaTime*1000);
 
 		ImGui::Separator();
 		// --------------
