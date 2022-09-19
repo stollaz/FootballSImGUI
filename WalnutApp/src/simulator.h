@@ -169,8 +169,8 @@ public:
 		// F = ma, s = ut + 0.5at^2
 		//velocity = strength; // Clamp this? Or at least have some max value? Or non-linear relationship?
 		movementDirection = glm::normalize(direction + movementDirection); //Blend these with previous values too?
-		acceleration = strength * movementDirection;
-		velocity = (strength) * movementDirection;
+		acceleration += strength * movementDirection;
+		velocity += (strength) * movementDirection;
 
 		PlaySound(TEXT("src/ball_kick.wav"), NULL, SND_FILENAME | SND_ASYNC);
 	}
@@ -276,7 +276,6 @@ private:
 	glm::vec3 airResistance; // Air resistance the ball feels in the air
 	const float g = 9.81f;
 };
-
 
 // Class to store information about a player in a simulation
 // TODO: Figure out if this itself stores player attribute informaiton, or just another player class and then uses that information to simulate activity
