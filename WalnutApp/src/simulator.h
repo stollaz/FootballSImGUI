@@ -171,7 +171,7 @@ public:
 		acceleration = strength * movementDirection;
 		velocity = (strength) * movementDirection;
 
-		//PlaySound(TEXT("ball_kick.wav"), NULL, SND_FILENAME);
+		PlaySound(TEXT("src/ball_kick.wav"), NULL, SND_FILENAME | SND_ASYNC);
 	}
 
 	// Nudge the ball by a given vector (useful for debugging)
@@ -193,9 +193,30 @@ public:
 		position = s;
 		glm::vec3 v = velocity + acceleration * deltaT;
 		velocity = v;
-		acceleration = -(airResistance * (velocity)) - (friction * (velocity)); // This is wrong but less wrong
+		//acceleration = -(airResistance * glm::normalize(velocity)) - (friction * glm::normalize(velocity)); // This is wrong but less wrong
+
+		// Apply either friction or air resitance to ball components depending on whether it is on the ground or not
+		if (position.z <= 0.1f) acceleration.x = -(friction * glm::normalize(velocity)).x;
+		else acceleration.x = -(airResistance * glm::normalize(velocity)).x;
+
+		if (position.z <= 0.1f) acceleration.y = -(friction * glm::normalize(velocity)).y;
+		else acceleration.y = -(airResistance * glm::normalize(velocity)).y;
+
+		acceleration.z = -g - (airResistance * glm::normalize(velocity)).y;
 		//if (glm::length(acceleration) < 0.3f) acceleration = glm::vec3(0, 0, 0);
-		if (glm::length(velocity) < 0.5f) velocity = glm::vec3(0, 0, 0);
+		// When velocity gets too low, set velocity to zero to avoid oscillation or infinite rolling
+		// Also set acceleration to 0 at this point too to avoid backwards movement
+		//if (glm::length(velocity) < 0.25f) { velocity = glm::vec3(0, 0, 0); acceleration = glm::vec3(0, 0, 0); }
+
+		// Early-stop terms to stop the ball quicker when at low velocities
+		// Done per component to allow for better treating of verticality
+		if (glm::abs(velocity.x) < 0.25f) { velocity.x = 0; acceleration.x = 0; }
+		if (glm::abs(velocity.y) < 0.25f) { velocity.y = 0; acceleration.y = 0; }
+		if (glm::abs(velocity.z) < 0.25f && position.z <= 0) { velocity.z = 0; acceleration.z = 0; } // Vertical stopping only occurs on the ground
+		
+		// Dampening term for bouncing, reversing velocity directiona and reducing velocity magnitude slowly over time (constant to be tweaked)
+		if (position.z <= 0 && velocity.z < 0) { velocity.z = -velocity.z * 0.5f; }
+		//if (velocity.z < 0) { velocity.z = -velocity.z * 0.5f; }
 
 		// Somehow, when friction counteracts velocity / acceleration perfectly (when ball stops / changes direction), ball needs to stay stopped
 	}
@@ -562,8 +583,9 @@ public:
 	// Render the ball
 	void RenderBall(Ball b) {
 		ImVec2 pos = ImVec2(b.getPosition().x, b.getPosition().y);
-		if (drawOutline) draw->AddCircle(ImVec2(LeftEdge + (pos.x / Pitch.x) * PitchSize.x, TopEdge + (pos.y / Pitch.y) * PitchSize.y), markerSize + 1, IM_COL32(0, 0, 0, 255)); // Draw outline
-		draw->AddCircleFilled(ImVec2(LeftEdge + (pos.x / Pitch.x) * PitchSize.x, TopEdge + (pos.y / Pitch.y) * PitchSize.y), markerSize, IM_COL32(255, 255, 255, 255)); // Draw marker for player
+		float ballSize = markerSize + 0.25*(b.getPosition().z)+1;
+		if (drawOutline) draw->AddCircle(ImVec2(LeftEdge + (pos.x / Pitch.x) * PitchSize.x, TopEdge + (pos.y / Pitch.y) * PitchSize.y), ballSize + 1, IM_COL32(0, 0, 0, 255)); // Draw outline
+		draw->AddCircleFilled(ImVec2(LeftEdge + (pos.x / Pitch.x) * PitchSize.x, TopEdge + (pos.y / Pitch.y) * PitchSize.y), ballSize, IM_COL32(255, 255, 255, 255)); // Draw marker for player
 	}
 
 	void Initialise(ImVec2 pitch) {
@@ -810,7 +832,8 @@ public:
 			startTime = ImGui::GetTime(); // Initialise start time to current time
 			lastTickTime = ImGui::GetTime(); // Set last tick time to current time
 			calculateMatchTime();
-			ball.Kick(15, glm::vec3(1, 1, 0), 0);
+			//ball.Kick(15, glm::vec3(1, 1, 0), 0);
+			ball.Kick(15, glm::vec3(1, 0, 1), 0);
 		}
 	}
 
