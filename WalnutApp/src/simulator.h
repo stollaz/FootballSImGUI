@@ -179,6 +179,12 @@ public:
 		position += d;
 	}
 
+	void Bounce() {
+		velocity.z = -velocity.z * 0.5f;
+		PlaySound(TEXT("src/ball_bounce.wav"), NULL, SND_FILENAME | SND_ASYNC);
+
+	}
+
 	// Maybe this is useful? https://physics.ucf.edu/~roldan/classes/phy2048-ch4_sp12.pdf
 	// Perform a step of the ball's movement, e.g. to simulate gravity or to continue a pre-existing movement momentum
 	// Takes in a delta T, how much simulation time has elapsed since last step
@@ -215,8 +221,10 @@ public:
 		if (glm::abs(velocity.z) < 0.25f && position.z <= 0) { velocity.z = 0; acceleration.z = 0; } // Vertical stopping only occurs on the ground
 		
 		// Dampening term for bouncing, reversing velocity directiona and reducing velocity magnitude slowly over time (constant to be tweaked)
-		if (position.z <= 0 && velocity.z < 0) { velocity.z = -velocity.z * 0.5f; }
+		if (position.z <= 0 && velocity.z < 0) { Bounce(); }
 		//if (velocity.z < 0) { velocity.z = -velocity.z * 0.5f; }
+
+		// TODO: Spin? Need to add velocity some proportion of the way around a arc towards a perpendicular vector
 
 		// Somehow, when friction counteracts velocity / acceleration perfectly (when ball stops / changes direction), ball needs to stay stopped
 	}
@@ -833,7 +841,7 @@ public:
 			lastTickTime = ImGui::GetTime(); // Set last tick time to current time
 			calculateMatchTime();
 			//ball.Kick(15, glm::vec3(1, 1, 0), 0);
-			ball.Kick(15, glm::vec3(1, 0, 1), 0);
+			ball.Kick(15, glm::vec3(-1, 0, 1), 0);
 		}
 	}
 
