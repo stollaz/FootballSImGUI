@@ -2,6 +2,8 @@
 #include "glm/vec3.hpp"
 #include "glm/mat3x3.hpp"
 
+#include <Windows.h>
+
 #pragma warning( disable : 4244 )
 #pragma warning( disable : 4305 )
 // Enum for what level of booking a player has
@@ -167,7 +169,9 @@ public:
 		//velocity = strength; // Clamp this? Or at least have some max value? Or non-linear relationship?
 		movementDirection = glm::normalize(direction + movementDirection); //Blend these with previous values too?
 		acceleration = strength * movementDirection;
-		velocity = (strength / 2) * movementDirection;
+		velocity = (strength) * movementDirection;
+
+		//PlaySound(TEXT("ball_kick.wav"), NULL, SND_FILENAME);
 	}
 
 	// Nudge the ball by a given vector (useful for debugging)
@@ -189,7 +193,7 @@ public:
 		position = s;
 		glm::vec3 v = velocity + acceleration * deltaT;
 		velocity = v;
-		acceleration = acceleration - (airResistance * (velocity)) - (friction * (velocity)); // This is wrong but less wrong
+		acceleration = -(airResistance * (velocity)) - (friction * (velocity)); // This is wrong but less wrong
 		//if (glm::length(acceleration) < 0.3f) acceleration = glm::vec3(0, 0, 0);
 		if (glm::length(velocity) < 0.5f) velocity = glm::vec3(0, 0, 0);
 
@@ -371,7 +375,7 @@ public:
 	// Do this on every tick, should contain all the logic to simulate the player
 	void Step(float deltaT) {
 		//TestStep(deltaT);
-		RandomMovement(deltaT);
+		//RandomMovement(deltaT);
 	}
 private:
 	PlayerState state; // State of the player
@@ -682,7 +686,7 @@ public:
 
 		SimulatorWindow = NULL; // THIS HAS TO BE SET FROM THE UI SIDE
 
-		SetupTeams();
+		Initialise();
 	}
 
 	// Render the simulation contents
@@ -751,7 +755,8 @@ public:
 	// TODO
 	// Initialise the simulation (might be the same as Begin)
 	void Initialise() {
-
+		SetupTeams();
+		ball.Reset();
 	}
 
 	void SetupTeams() {
@@ -805,8 +810,7 @@ public:
 			startTime = ImGui::GetTime(); // Initialise start time to current time
 			lastTickTime = ImGui::GetTime(); // Set last tick time to current time
 			calculateMatchTime();
-
-			//ball.Kick(10, glm::vec3(1, 0, 0), 0);
+			ball.Kick(15, glm::vec3(1, 1, 0), 0);
 		}
 	}
 

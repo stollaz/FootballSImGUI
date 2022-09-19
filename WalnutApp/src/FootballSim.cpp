@@ -1119,7 +1119,7 @@ private:
 	float tickTime = 1000 / TPS; // Tick time in ms
 	float timeMultiplier = 1.0f; // Time multiplier
 
-	Ball b = Ball(glm::vec3(Pitch.x / 2, Pitch.y / 2, 0), 1.0f, 0.1f, 0.0f);
+	Ball b = Ball(glm::vec3(Pitch.x / 2, Pitch.y / 2, 0), 1.0f, 1.0f, 1.0f);
 	Simulator simulator = Simulator(TPS, b);
 	//Renderer renderer = Renderer(Pitch);
 };
